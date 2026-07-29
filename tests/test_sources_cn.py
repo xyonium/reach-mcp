@@ -23,7 +23,8 @@ async def test_v2ex_parses_topics():
 @pytest.mark.asyncio
 async def test_xueqiu_parses_html():
     html = '<html><a href="/123/X" class="title">Stock news</a></html>'
-    c = AsyncMock(); c.get_text = AsyncMock(return_value=html)
+    c = AsyncMock()
+    c.get_text = AsyncMock(return_value=html)
     set_client(c)
     rows = await get_source("xueqiu").fetch("AAPL", 30, 10)
     assert rows and "Stock news" in rows[0].title

@@ -79,15 +79,15 @@ def available_sources() -> list[str]:
 
 
 # --- shared client accessor (set per search call, not import time) ---
-_CLIENT: "PoliteClient | None" = None
+_CLIENT: PoliteClient | None = None
 
 
-def set_client(client: "PoliteClient") -> None:
+def set_client(client: PoliteClient) -> None:
     global _CLIENT
     _CLIENT = client
 
 
-def get_client() -> "PoliteClient":
+def get_client() -> PoliteClient:
     if _CLIENT is None:
         raise RuntimeError("PoliteClient not set; call set_client() before fetch()")
     return _CLIENT
