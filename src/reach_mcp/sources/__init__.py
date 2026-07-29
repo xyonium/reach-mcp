@@ -16,12 +16,18 @@ from reach_mcp.sources.base import (
     Item,
     Row,
     Source,
-    available_sources as _available_sources,
-    get_source as _get_source,
-    list_sources as _list_sources,
+    get_client,
     register_source,
     set_client,
-    get_client,
+)
+from reach_mcp.sources.base import (
+    available_sources as _available_sources,
+)
+from reach_mcp.sources.base import (
+    get_source as _get_source,
+)
+from reach_mcp.sources.base import (
+    list_sources as _list_sources,
 )
 
 log = logging.getLogger(__name__)

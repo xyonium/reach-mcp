@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from reach_mcp.sources import available_sources, get_source, list_sources
 from reach_mcp.sources.base import Row, Source, register_source
-from reach_mcp.sources import get_source, list_sources, available_sources
 
 
 @register_source

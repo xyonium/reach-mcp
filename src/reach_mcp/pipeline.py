@@ -12,7 +12,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from reach_mcp.config import Settings
 from reach_mcp.http import PoliteClient
-from reach_mcp.sources.base import Item, Row, SOURCES, set_client
+from reach_mcp.sources.base import SOURCES, Item, Row, set_client
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ def score(items: list[Item], days: int) -> list[Item]:
         mean = sum(vals) / len(vals) if vals else 0.0
         var = sum((v - mean) ** 2 for v in vals) / len(vals) if vals else 0.0
         std = math.sqrt(var) or 1.0
-        for it, v in zip(group, vals):
+        for it, v in zip(group, vals, strict=False):
             z = (v - mean) / std
             age_days = 0.0
             if it.date:
