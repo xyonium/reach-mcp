@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reach-mcp"
+version = "0.1.0"
+description = "Controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, HN, GitHub, arXiv, Polymarket, 雪球, V2EX, B站, 小宇宙 & more. Open replacement for last30days."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "xyonium", email = "shark_xc@hotmail.com" }]
+dependencies = [
+    "mcp[cli]>=1.27,<2",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "starlette>=0.37",
+    "uvicorn[standard]>=0.30",
+    "feedparser>=6.0",
+    "yt-dlp>=2024.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "anyio>=4",
+    "ruff>=0.6",
+    "build>=1.2",
+]
+
+[project.scripts]
+reach-mcp = "reach_mcp.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B017"]
