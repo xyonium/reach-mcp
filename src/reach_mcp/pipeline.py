@@ -3,10 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import importlib
 import logging
 import math
-import pkgutil
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -18,23 +16,12 @@ from reach_mcp.sources.base import Item, Row, SOURCES, set_client
 
 log = logging.getLogger(__name__)
 
-_SOURCE_MODULES_LOADED = False
-
 
 def import_all_sources() -> None:
-    """Import every module in reach_mcp.sources so the registry is populated."""
-    global _SOURCE_MODULES_LOADED
-    if _SOURCE_MODULES_LOADED:
-        return
-    import reach_mcp.sources as _pkg
-    for mod in pkgutil.iter_modules(_pkg.__path__):
-        if mod.name in {"base", "__init__"} or mod.name.startswith("_"):
-            continue
-        try:
-            importlib.import_module(f"reach_mcp.sources.{mod.name}")
-        except Exception:  # noqa: BLE001
-            log.exception("failed to import source module %s", mod.name)
-    _SOURCE_MODULES_LOADED = True
+    """Populate the source registry. Delegates to the lazy loader in the
+    sources package so there is one source of truth for discovery."""
+    from reach_mcp.sources import _ensure_loaded  # noqa: PLC0415
+    _ensure_loaded()
 
 
 @dataclass
