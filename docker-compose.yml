@@ -1,0 +1,17 @@
+services:
+  reach-mcp:
+    build: .
+    image: reach-mcp:latest
+    container_name: reach-mcp
+    ports:
+      - "8765:8765"
+    environment:
+      REACH_MCP_TRANSPORT: http
+      REACH_MCP_HOST: 0.0.0.0
+      REACH_MCP_PORT: "8765"
+      REACH_MCP_ALLOWED_HOSTS: "reach-mcp:8765,localhost:8765,127.0.0.1:8765"
+      # OPENAI_BASE_URL: "https://your-gateway/v1"
+      # OPENAI_API_KEY: "sk-..."
+      # SEARXNG_URL: "http://searxng:8080"
+      # GH_TOKEN, AUTH_TOKEN/CT0, TRUTHSOCIAL_TOKEN, SCRAPECREATORS_API_KEY, ...
+    restart: unless-stopped
