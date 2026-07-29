@@ -1,0 +1,71 @@
+"""Environment-based configuration.
+
+Defaults are read at *instantiation* time (via default_factory), not at class
+definition, so tests and runtime env changes are honored.
+"""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
+_DEFAULT_ALLOWED_HOSTS = ("127.0.0.1:*", "localhost:*", "[::1]:*")
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_allowed_hosts() -> tuple[str, ...]:
+    raw = os.environ.get("REACH_MCP_ALLOWED_HOSTS")
+    if raw is None:
+        return _DEFAULT_ALLOWED_HOSTS
+    return tuple(h.strip() for h in raw.split(",") if h.strip())
+
+
+def _env(name: str, default: str = "") -> str:
+    return os.environ.get(name, default)
+
+
+@dataclass(frozen=True)
+class Settings:
+    transport: str = field(default_factory=lambda: _env("REACH_MCP_TRANSPORT", "http"))
+    host: str = field(default_factory=lambda: _env("REACH_MCP_HOST", "0.0.0.0"))
+    port: int = field(default_factory=lambda: _env_int("REACH_MCP_PORT", 8765))
+    api_key: str = field(default_factory=lambda: _env("REACH_MCP_API_KEY"))
+    dns_rebinding_protection: bool = field(
+        default_factory=lambda: _env_bool("REACH_MCP_DNS_REBINDING_PROTECTION", True)
+    )
+    allowed_hosts: tuple[str, ...] = field(default_factory=_parse_allowed_hosts)
+
+    openai_base_url: str = field(default_factory=lambda: _env("OPENAI_BASE_URL"))
+    openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY"))
+    rerank_model: str = field(default_factory=lambda: _env("REACH_MCP_RERANK_MODEL", "gemini-flash-lite"))
+    brief_model: str = field(default_factory=lambda: _env("REACH_MCP_BRIEF_MODEL", "gemini-flash-lite"))
+
+    searxng_url: str = field(default_factory=lambda: _env("SEARXNG_URL", "http://searxng:8080"))
+
+    source_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_SOURCE_TIMEOUT", 60))
+    request_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_REQUEST_TIMEOUT", 15))
+    min_host_delay: float = field(default_factory=lambda: _env_float("REACH_MCP_MIN_HOST_DELAY", 0.5))
+    max_retries: int = field(default_factory=lambda: _env_int("REACH_MCP_MAX_RETRIES", 3))
+
+
+def get_settings() -> Settings:
+    return Settings()
