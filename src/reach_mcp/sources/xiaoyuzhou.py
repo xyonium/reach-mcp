@@ -15,7 +15,10 @@ from reach_mcp.sources.base import Row, Source, get_client, register_source
 @register_source
 class Xiaoyuzhou(Source):
     name = "xiaoyuzhou"
-    description = "小宇宙 podcast episodes; transcripts via Whisper (free Groq tier)."
+    description = (
+        "小宇宙 podcast episode search + metadata (free public API, no key). "
+        "Whisper transcription via Groq (GROQ_API_KEY) — deferred to post-v1."
+    )
     host = "api.xiaoyuzhoufm.com"
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:

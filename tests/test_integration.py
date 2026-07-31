@@ -41,7 +41,7 @@ async def test_search_end_to_end(monkeypatch):
 
         mcp = build_mcp(Settings(openai_api_key="sk-x"))
         tools = {t.name: t for t in await mcp.list_tools()}
-        assert {"search", "list_sources", "synthesize"} <= set(tools)
+        assert {"search", "list_sources", "synthesize", "read_url"} <= set(tools)
 
         client = PoliteClient(Settings())
         set_client(client)
@@ -56,10 +56,10 @@ async def test_search_end_to_end(monkeypatch):
 @pytest.mark.asyncio
 async def test_list_sources_includes_all_registered():
     mcp = build_mcp(Settings())
-    # build_mcp triggers import_all_sources; 23 real sources must be present
+    # build_mcp triggers import_all_sources; 25 real sources must be present
     tools = {t.name: t for t in await mcp.list_tools()}
     assert "list_sources" in tools
     # available_sources reflects env; at minimum the registry is populated
     assert "hackernews" in SOURCES
     assert "xueqiu" in SOURCES
-    assert len(SOURCES) >= 23
+    assert len(SOURCES) >= 25
