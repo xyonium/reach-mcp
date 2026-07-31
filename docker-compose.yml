@@ -6,12 +6,81 @@ services:
     ports:
       - "8765:8765"
     environment:
+      # ===== Server =====
       REACH_MCP_TRANSPORT: http
       REACH_MCP_HOST: 0.0.0.0
       REACH_MCP_PORT: "8765"
       REACH_MCP_ALLOWED_HOSTS: "reach-mcp:8765,localhost:8765,127.0.0.1:8765"
+
+      # ===== LLM (rerank + brief) =====
       # OPENAI_BASE_URL: "https://your-gateway/v1"
       # OPENAI_API_KEY: "sk-..."
-      # SEARXNG_URL: "http://searxng:8080"
-      # GH_TOKEN, AUTH_TOKEN/CT0, TRUTHSOCIAL_TOKEN, SCRAPECREATORS_API_KEY, ...
+      # REACH_MCP_RERANK_MODEL: "gemini-flash-lite"
+      # REACH_MCP_BRIEF_MODEL: "gemini-flash-lite"
+
+      # ===== Web search =====
+      SEARXNG_URL: "http://searxng:8080"
+
+      # ===== Free sources (optional auth) =====
+      # GH_TOKEN: "github_pat_..."
+      # BSKY_HANDLE: "you.bsky.social"
+      # BSKY_APP_PASSWORD: "xxxx-xxxx-xxxx-xxxx"
+      # YTDLP_PROXY: "http://proxy:8080"
+      # JINA_API_KEY: "jina_..."        # LinkedIn search + read_url (free monthly quota)
+      # BRAVE_API_KEY: "BSA_..."        # web search boost ($5 free credits/mo recurring)
+      # RSS_FEEDS: "https://blog.example.com/feed,https://hnrss.org/frontpage"
+
+      # ===== X / Twitter =====
+      # AUTH_TOKEN: "..."
+      # CT0: "..."
+
+      # ===== Truth Social =====
+      # TRUTHSOCIAL_TOKEN: "..."
+
+      # ===== Apify (threads + tiktok/instagram/pinterest preferred) =====
+      # $5 free credits every month (recurring)
+      # APIFY_API_TOKEN: "apify_api_..."
+
+      # ===== ScrapeCreators (tiktok/instagram/pinterest fallback) =====
+      # 100 credits one-time, then paid from $10/mo
+      # SCRAPECREATORS_API_KEY: "sc_..."
+
+      # ===== Xiaohongshu / 小红书 =====
+      # Requires xiaohongshu-mcp companion service (see below)
+      # XHS_MCP_URL: "http://xiaohongshu-mcp:18060/mcp"
+
+      # ===== Xiaoyuzhou / 小宇宙 (transcription, post-v1) =====
+      # GROQ_API_KEY: "gsk_..."
+
+      # ===== Threads (v1 scaffold, not yet working) =====
+      # THREADS_COOKIE: "..."
+
+      # ===== Optional lock on the HTTP surface =====
+      # REACH_MCP_API_KEY: "..."
+
     restart: unless-stopped
+
+  # ---- Optional: Xiaohongshu companion service ----
+  # Uncomment to enable 小红书 search.
+  # After starting, run the login helper once:
+  #   docker compose exec xiaohongshu-mcp /xiaohongshu-login
+  #
+  # xiaohongshu-mcp:
+  #   image: ghcr.io/xpzouying/xiaohongshu-mcp:latest
+  #   ports:
+  #     - "18060:18060"
+  #   restart: unless-stopped
+
+  # ---- External: Searxng instance ----
+  # reach-mcp expects a Searxng instance at SEARXNG_URL.
+  # Example if you run searxng in the same compose:
+  #
+  # searxng:
+  #   image: searxng/searxng:latest
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - SEARXNG_BASE_URL=http://searxng:8080/
+  #   volumes:
+  #     - ./searxng-settings:/etc/searxng
+  #   restart: unless-stopped

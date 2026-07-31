@@ -8,21 +8,23 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from reach_mcp.config import Settings
 from reach_mcp.http import PoliteClient
+from reach_mcp.jina import read_url as jina_read_url
 from reach_mcp.pipeline import SourceReport, import_all_sources, run_search
 from reach_mcp.sources import SOURCES, available_sources
-from reach_mcp.sources.base import Item
+from reach_mcp.sources.base import Item, set_client
 from reach_mcp.synthesize import brief, rerank
 
 log = logging.getLogger(__name__)
 
 _SEARCH_DESC = (
-    "Search up to 23 social & web sources in parallel, score by engagement, "
+    "Search up to 25 social & web sources in parallel, score by engagement, "
     "optionally synthesize a cited brief. YOU control scope.\n\n"
     "Sources (pass any subset as `sources`; omit/None = all currently-configured): "
     "free — reddit, hackernews, bluesky, github, arxiv, techmeme, polymarket, "
-    "stocktwits, web; video — youtube; chinese — xueqiu, v2ex, bilibili, "
-    "xiaoyuzhou; login-gated (off until creds set) — x, truthsocial, tiktok, "
-    "instagram, linkedin, xiaohongshu, threads, pinterest; binary — digg.\n\n"
+    "stocktwits, web, dripstack, rss; video — youtube; chinese — xueqiu, v2ex, "
+    "bilibili, xiaoyuzhou, xiaohongshu; login-gated (off until creds set) — x, "
+    "truthsocial, linkedin, tiktok, instagram, pinterest; binary — digg; "
+    "apify — threads.\n\n"
     "Args: `query` (str, the topic/person/ticker); `sources` (list[str] | None, "
     "None=all available); `days` (int, recency window, default 30); "
     "`max_per_source` (int, row cap per source, default 20); `synthesize` (bool, "
@@ -47,6 +49,15 @@ _SYNTH_DESC = (
     "Pass the original `query` and the `items` list from a prior "
     "search(synthesize=false). Returns {brief}. Use to re-brief cheaply with "
     "different emphasis. No source calls are made."
+)
+
+_READ_URL_DESC = (
+    "Read the content of any URL as clean text (via Jina Reader, free). Use this "
+    "to fetch and analyze a page you found in search results - e.g. a Reddit thread, "
+    "news article, blog post, or GitHub readme - when you need the full text beyond "
+    "the snippet returned by `search`. Args: `url` (str). Returns "
+    "{url, content, ok}. `content` is the page text (markdown/plain); empty string "
+    "on failure. Keyless works at 20 RPM; set JINA_API_KEY for 500 RPM."
 )
 
 
@@ -125,5 +136,17 @@ def build_mcp(settings: Settings) -> FastMCP:
             engagement=i.get("engagement", {}), text=i.get("text", ""),
         ) for i in items]
         return {"brief": await brief(query, parsed, settings)}
+
+    @mcp.tool(description=_READ_URL_DESC)
+    async def read_url(url: str) -> dict:
+        # Use a dedicated client with a longer timeout: page reads via Jina can
+        # take several seconds. read_url is independent of the search pipeline.
+        client = PoliteClient(settings)
+        try:
+            set_client(client)
+            content = await jina_read_url(url)
+            return {"url": url, "content": content, "ok": bool(content)}
+        finally:
+            await client.aclose()
 
     return mcp

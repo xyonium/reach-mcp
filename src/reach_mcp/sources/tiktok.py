@@ -1,6 +1,17 @@
-"""TikTok via ScrapeCreators (free-tier key). Off by default."""
+"""TikTok via Apify (primary, free $5/mo) + ScrapeCreators (fallback, one-time)
++ OpenCLI (optional desktop free).
+
+Priority: Apify (server-side, recurring free credits) -> OpenCLI (if on PATH,
+desktop) -> ScrapeCreators (one-time credits). First backend with a configured
+credential/CLI wins.
+"""
 from __future__ import annotations
 
+import os
+
+from reach_mcp.sources._apify import fetch_tiktok as _apify_fetch
+from reach_mcp.sources._opencli import cli_search
+from reach_mcp.sources._opencli import has_cli as _has_opencli
 from reach_mcp.sources._scrapecreators import scrape_search
 from reach_mcp.sources.base import Row, Source, get_client, register_source
 
@@ -8,13 +19,28 @@ from reach_mcp.sources.base import Row, Source, get_client, register_source
 @register_source
 class TikTok(Source):
     name = "tiktok"
-    description = "TikTok search via ScrapeCreators (free-tier key)."
+    description = (
+        "TikTok via Apify (free $5/mo; APIFY_API_TOKEN) or OpenCLI (desktop, "
+        "free) or ScrapeCreators (100 one-time credits; SCRAPECREATORS_API_KEY)."
+    )
     host = "api.scrapecreators.com"
     needs_auth = True
-    required_env = ("SCRAPECREATORS_API_KEY",)
+    required_env = ("APIFY_API_TOKEN",)  # primary; others checked at runtime
+
+    def available(self) -> bool:  # type: ignore[override]
+        return bool(
+            os.environ.get("APIFY_API_TOKEN", "").strip()
+            or os.environ.get("SCRAPECREATORS_API_KEY", "").strip()
+            or _has_opencli()
+        )
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
-        if not self.available():
-            return []
-        client = get_client()
-        return await scrape_search(client, "tiktok", query, limit)
+        if os.environ.get("APIFY_API_TOKEN", "").strip():
+            return await _apify_fetch(query, limit)
+        if _has_opencli():
+            rows = await cli_search("tiktok", query, limit)
+            if rows:
+                return rows
+        if os.environ.get("SCRAPECREATORS_API_KEY", "").strip():
+            return await scrape_search(get_client(), "tiktok", query, limit)
+        return []

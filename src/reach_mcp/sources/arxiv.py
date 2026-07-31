@@ -1,7 +1,7 @@
-"""arXiv papers via the Atom API (free, no key)."""
+"""arXiv papers via the Atom API (free, no key), parsed with feedparser."""
 from __future__ import annotations
 
-import re
+import feedparser
 
 from reach_mcp.sources.base import Row, Source, get_client, register_source
 
@@ -15,26 +15,21 @@ class Arxiv(Source):
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         client = get_client()
         xml = await client.get_text(
-            "http://export.arxiv.org/api/query",
+            "https://export.arxiv.org/api/query",
             params={"search_query": f"all:{query}", "max_results": str(min(limit, 50))},
         )
+        feed = feedparser.parse(xml)
         rows: list[Row] = []
-        for entry in _entries(xml):
-            idm = re.search(r"<id>(.*?)</id>", entry, re.S)
-            title = re.search(r"<title>(.*?)</title>", entry, re.S)
-            summ = re.search(r"<summary>(.*?)</summary>", entry, re.S)
-            pub = re.search(r"<published>(.*?)</published>", entry, re.S)
-            author = re.search(r"<name>(.*?)</name>", entry, re.S)
-            url = (idm.group(1).strip() if idm else "")
+        for e in feed.entries:
+            authors = ", ".join(a.get("name", "") for a in e.get("authors", [])) or None
             rows.append(Row(
-                source="arxiv", id=url, title=(title.group(1).strip() if title else ""),
-                url=url, author=(author.group(1).strip() if author else None),
-                date=(pub.group(1).strip() if pub else None),
-                engagement={}, text=(summ.group(1).strip() if summ else ""),
+                source="arxiv",
+                id=e.get("id") or "",
+                title=e.get("title", "").strip(),
+                url=e.get("id") or e.get("link") or "",
+                author=authors,
+                date=e.get("published"),
+                engagement={},
+                text=(e.get("summary") or "")[:500],
             ))
         return rows
-
-
-def _entries(xml: str) -> list[str]:
-    parts = xml.split("<entry>")
-    return parts[1:] if len(parts) > 1 else []
