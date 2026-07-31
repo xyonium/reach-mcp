@@ -122,6 +122,46 @@ docker run -p 8765:8765 --env-file .env ghcr.io/xyonium/reach-mcp:latest
 
 See [docker-compose.yml](docker-compose.yml) for a full example with all available env vars (including optional xiaohongshu-mcp companion service).
 
+### Option C -- mcpo (multi-server host, recommended for OpenWebUI)
+
+[mcpo](https://github.com/open-webui/mcpo) launches many MCP servers via `uvx` and exposes each as an OpenAPI endpoint. reach-mcp is a 1:1 drop-in replacement for the closed `last30days` server -- just swap the `config.json` entry.
+
+**1. config.json** -- list reach-mcp (see [deploy/mcpo-config.example.json](deploy/mcpo-config.example.json) for the full env set):
+```jsonc
+{
+  "reach": {
+    "command": "uvx",
+    "args": ["reach-mcp", "--transport", "stdio"],
+    "env": { "SEARXNG_URL": "http://searxng:8080", "OPENAI_API_KEY": "sk-..." }
+  }
+}
+```
+
+**2. entrypoint.sh** -- [deploy/entrypoint.sh](deploy/entrypoint.sh) installs reach-mcp's runtime deps on first start (cached under the mounted volume): `yt-dlp` (youtube), `bili-cli` (bilibili - handles B站 wbi/412), `gh` (github), Go + `digg`/`arxiv`/`techmeme` pp-cli. Copy it into your mcpo config dir.
+
+**3. compose** -- [deploy/docker-compose.mcpo.yml](deploy/docker-compose.mcpo.yml) mirrors a production setup with `UV_CACHE_DIR`/`UV_TOOL_DIR`/`npm_config_cache` persistence, plus optional Searxng and `xiaohongshu-mcp` companion services:
+```yaml
+mcp:
+  image: ghcr.io/open-webui/mcpo:latest
+  volumes:
+    - ./mcpo-config:/config        # entrypoint.sh + config.json
+  environment:
+    UV_CACHE_DIR: /config/uv-cache
+    UV_TOOL_DIR: /config/uv-tools
+    UV_TOOL_BIN_DIR: /config/uv-bin
+    PATH: /config/uv-bin:/config/bin:/config/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    npm_config_cache: /config/npm-cache
+  entrypoint: ["/bin/bash", "/config/entrypoint.sh"]
+  command: ["--host", "0.0.0.0", "--port", "8000", "--config", "/config/config.json"]
+```
+
+OpenWebUI then connects to `http://mcp:8000/reach` (OpenAPI) or `http://mcp:8000/reach/mcp` (native MCP).
+
+> **Upgrading deps:** `touch /config/UPGRADE` in the config dir, then restart the container -- the entrypoint clears its binary caches and reinstalls fresh (yt-dlp, bili-cli, pp-cli, etc.).
+>
+> **OpenCLI note:** the OpenCLI desktop boost (tiktok/instagram/pinterest/xueqiu) is intentionally NOT installed in this headless container -- those sources use their server-side backends (Apify / public APIs / Searxng), which is the intended default. OpenCLI only applies if you run mcpo on a desktop machine with Chrome.
+
+
 ## Configuration
 
 All config is environment variables (a `Settings` dataclass). Everything is optional -- the server degrades to free-source-only mode if you set nothing.
