@@ -61,6 +61,11 @@ class Settings:
 
     searxng_url: str = field(default_factory=lambda: _env("SEARXNG_URL", "http://searxng:8080"))
 
+    # Optional free-tier monthly-quota credentials (not one-time credits)
+    jina_api_key: str = field(default_factory=lambda: _env("JINA_API_KEY"))
+    brave_api_key: str = field(default_factory=lambda: _env("BRAVE_API_KEY"))
+    apify_api_token: str = field(default_factory=lambda: _env("APIFY_API_TOKEN"))
+
     source_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_SOURCE_TIMEOUT", 60))
     request_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_REQUEST_TIMEOUT", 15))
     min_host_delay: float = field(default_factory=lambda: _env_float("REACH_MCP_MIN_HOST_DELAY", 0.5))

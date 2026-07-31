@@ -24,7 +24,11 @@ async def _fetch_subtitles(query: str, limit: int) -> list[dict]:
     opts = {
         "quiet": True, "skip_download": True, "writesubtitles": True,
         "writeautomaticsub": True, "subtitleslangs": ["en", "zh"],
-        "extract_flat": True, "default_search": "ytsearch",
+        # NOTE: extract_flat is intentionally False. With extract_flat=True yt-dlp
+        # returns shallow entries that carry no subtitles/automatic_captions, so
+        # the transcript text would always be empty. Fetching full info per video
+        # is slower but is what makes transcripts actually populate.
+        "extract_flat": False, "default_search": "ytsearch",
         "playlistend": limit,
     }
     if proxy:
