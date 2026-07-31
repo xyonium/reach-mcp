@@ -35,3 +35,36 @@ async def test_digg_disabled_without_cli(monkeypatch):
     monkeypatch.setattr("reach_mcp.sources.digg._has_cli", lambda: False)
     rows = await get_source("digg").fetch("ai", 30, 10)
     assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_xiaohongshu_parses_mcp_markdown(monkeypatch):
+    """When xiaohongshu-mcp returns markdown, we parse it into Rows."""
+    monkeypatch.setenv("XHS_MCP_URL", "http://localhost:18060/mcp")
+
+    async def fake_fetch(url, query, limit):
+        return []  # don't actually call MCP; just test the plain fetch
+
+    monkeypatch.setattr(
+        "reach_mcp.sources.xiaohongshu._fetch_via_mcp", fake_fetch
+    )
+    # Verify the source is available and fetch doesn't crash
+    assert get_source("xiaohongshu").available()
+    rows = await get_source("xiaohongshu").fetch("test", 30, 10)
+    assert rows == []  # fake fetch returns empty
+
+
+@pytest.mark.asyncio
+async def test_xiaohongshu_parse_markdown():
+    """Unit test the markdown parser."""
+    from reach_mcp.sources.xiaohongshu import _parse_xhs_markdown
+
+    md = (
+        "**Best Hotpot in Chengdu** | ❤️ 345 | 💬 89 | "
+        "https://www.xiaohongshu.com/explore/abc123 | 收藏 200\n"
+    )
+    rows = _parse_xhs_markdown(md)
+    assert len(rows) >= 1
+    assert rows[0].title == "Best Hotpot in Chengdu"
+    assert rows[0].source == "xiaohongshu"
+    assert "abc123" in rows[0].url

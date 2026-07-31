@@ -1,23 +1,27 @@
-"""Threads via cookie (free account). Off by default; v1 scaffold.
+"""Threads (Meta) via Apify (free $5/month recurring credits).
 
-Like xiaohongshu, ships as an off-by-default scaffold so it's discoverable in
-list_sources; the fetch path returns [] until a stable scrape is implemented.
+No viable free server-side API exists otherwise - Meta's Threads API requires a
+verified developer account + app review. Apify's threads-scraper Actor runs on
+the Free plan's $5 monthly credits (recurring). Requires APIFY_API_TOKEN.
 """
 from __future__ import annotations
 
+from reach_mcp.sources._apify import fetch_threads as _apify_fetch
 from reach_mcp.sources.base import Row, Source, register_source
 
 
 @register_source
 class Threads(Source):
     name = "threads"
-    description = "Threads posts via cookie (free account; v1 scaffold)."
+    description = (
+        "Threads (Meta) posts via Apify threads-scraper "
+        "(free $5 monthly credits; set APIFY_API_TOKEN)."
+    )
     host = "www.threads.net"
     needs_auth = True
-    required_env = ("THREADS_COOKIE",)
+    required_env = ("APIFY_API_TOKEN",)
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         if not self.available():
             return []
-        # v1 scaffold; returns [].
-        return []
+        return await _apify_fetch(query, limit)
