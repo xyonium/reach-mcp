@@ -1,0 +1,73 @@
+# mcpo deployment example for reach-mcp.
+#
+# mcpo (https://github.com/open-webui/mcpo) launches many MCP servers via uvx
+# and exposes each as an OpenAPI endpoint. reach-mcp replaces the closed
+# last30days server 1:1 - just change the config.json entry from last30days to
+# reach-mcp. This compose mirrors the production setup at /mnt/docker/mcpserver.
+#
+#   1. Copy deploy/entrypoint.sh to your mcpo config dir (e.g. /mnt/docker/mcpserver/entrypoint.sh)
+#   2. Put a config.json next to it listing reach-mcp (see deploy/mcpo-config.example.json)
+#   3. `docker compose -f deploy/docker-compose.mcpo.yml up -d`
+#
+# The entrypoint installs reach-mcp's runtime deps (yt-dlp, bili-cli, gh, Go,
+# digg/arxiv/techmeme pp-cli) on first start, cached under the mounted volume.
+
+services:
+  mcp:
+    image: ghcr.io/open-webui/mcpo:latest
+    container_name: mcp
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./mcpo-config:/config          # entrypoint.sh + config.json live here
+      - mcp-downloads:/downloads
+    environment:
+      # uv/uvx cache persistence - every uvx-launched server benefits
+      UV_CACHE_DIR: /config/uv-cache
+      # uv tool installs (yt-dlp, bili-cli) persist too
+      UV_TOOL_DIR: /config/uv-tools
+      UV_TOOL_BIN_DIR: /config/uv-bin
+      PATH: /config/uv-bin:/config/bin:/config/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      # npm/npx cache persistence (pp-cli builds via npx)
+      npm_config_cache: /config/npm-cache
+      # ---- reach-mcp credentials (set the ones you want enabled) ----
+      # See README "Configuration" for the full list. Examples:
+      OPENAI_BASE_URL: "https://your-gateway/v1"
+      OPENAI_API_KEY: "sk-..."
+      SEARXNG_URL: "http://searxng:8080"
+      GH_TOKEN: "github_pat_..."
+      # AUTH_TOKEN / CT0 (X), TRUTHSOCIAL_TOKEN, APIFY_API_TOKEN,
+      # SCRAPECREATORS_API_KEY, JINA_API_KEY, BRAVE_API_KEY, XHS_MCP_URL ...
+    entrypoint: ["/bin/bash", "/config/entrypoint.sh"]
+    command: ["--host", "0.0.0.0", "--port", "8000", "--config", "/config/config.json"]
+    expose:
+      - "8000"
+    # If you run the xiaohongshu-mcp companion, depend on it:
+    # depends_on:
+    #   xiaohongshu-mcp:
+    #     condition: service_started
+
+  # ---- Optional: Searxng (web + linkedin sources) ----
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    volumes:
+      - ./searxng-settings:/etc/searxng:ro
+
+  # ---- Optional: xiaohongshu-mcp companion (xiaohongshu source) ----
+  # Run the login helper once: docker compose exec xiaohongshu-mcp /xiaohongshu-login
+  # xiaohongshu-mcp:
+  #   image: ghcr.io/xpzouying/xiaohongshu-mcp:latest
+  #   container_name: xiaohongshu-mcp
+  #   restart: unless-stopped
+  #   expose:
+  #     - "18060"
+
+volumes:
+  mcp-downloads:
