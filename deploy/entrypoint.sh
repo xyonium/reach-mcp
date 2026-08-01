@@ -140,4 +140,21 @@ done
 # and install the Chrome extension separately. Without it, those sources use their
 # server-side backends (Apify / public APIs / Searxng) which is the intended default.
 
+# ========== 8. uv constraints (pin mcp SDK <2 for mcpo + its child servers) ==========
+# mcpo 0.0.20 (and many uvx-launched MCP servers like mcp-server-fetch) import
+# 1.x mcp SDK symbols that mcp 2.0 renamed, so uv resolving mcp 2.x crashes them
+# at startup. Pin mcp<2 via a constraints file. Setting UV_CONSTRAINT (not just
+# --constraints) matters: mcpo spawns each config.json server with
+# env={**os.environ,...}, so a UV_CONSTRAINT env var is inherited by every child
+# uvx process too — --constraints alone only fixes mcpo itself. Copy
+# deploy/uv-constraints.txt to your mcpo config dir to customize; otherwise the
+# default below is written to /config/uv-constraints.txt.
+if [ ! -f /config/uv-constraints.txt ]; then
+  cat > /config/uv-constraints.txt <<'UVEOF'
+mcp<2
+UVEOF
+  echo "[mcpo] wrote default uv-constraints.txt (mcp<2)"
+fi
+export UV_CONSTRAINT=/config/uv-constraints.txt
+
 exec uvx mcpo "$@"
