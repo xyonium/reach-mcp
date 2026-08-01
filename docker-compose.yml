@@ -48,6 +48,9 @@ services:
       # ===== Xiaohongshu / 小红书 =====
       # Requires xiaohongshu-mcp companion service (see below)
       # XHS_MCP_URL: "http://xiaohongshu-mcp:18060/mcp"
+      #
+      # ===== Full credential roadmap + RSS feed recommendations =====
+      # See docs/CREDENTIALS.md for step-by-step acquisition of every key.
 
       # ===== Xiaoyuzhou / 小宇宙 (transcription, post-v1) =====
       # GROQ_API_KEY: "gsk_..."
@@ -62,14 +65,27 @@ services:
 
   # ---- Optional: Xiaohongshu companion service ----
   # Uncomment to enable 小红书 search.
-  # After starting, run the login helper once:
-  #   docker compose exec xiaohongshu-mcp /xiaohongshu-login
+  # After starting, log in once via QR scan (see README "Login"):
+  #   npx @modelcontextprotocol/inspector  → connect http://localhost:18060/mcp
+  #   → call the `login` tool, scan the QR with the 小红书 App, then `check_login`
+  #
+  # The ./data volume is REQUIRED: it holds the login cookies (lost on
+  # recreate without it). ./images only needed when publishing notes.
   #
   # xiaohongshu-mcp:
   #   image: ghcr.io/xpzouying/xiaohongshu-mcp:latest
   #   ports:
   #     - "18060:18060"
   #   restart: unless-stopped
+  #   init: true
+  #   tty: true
+  #   volumes:
+  #     - ./data:/app/data
+  #     - ./images:/app/images
+  #   environment:
+  #     - COOKIES_PATH=/app/data/cookies.json
+  #     - HOME=/app/data/home
+  #     - XDG_CONFIG_HOME=/app/data/config
 
   # ---- External: Searxng instance ----
   # reach-mcp expects a Searxng instance at SEARXNG_URL.
