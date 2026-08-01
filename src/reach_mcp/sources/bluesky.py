@@ -8,12 +8,12 @@ from reach_mcp.sources.base import Row, Source, get_client, register_source
 class Bluesky(Source):
     name = "bluesky"
     description = "Bluesky posts via the public AT Protocol search (free)."
-    host = "public.api.bsky.app"
+    host = "api.bsky.app"
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         client = get_client()
         data = await client.get_json(
-            "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts",
+            "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts",
             params={"q": query, "limit": str(min(limit, 50))},
         )
         rows: list[Row] = []

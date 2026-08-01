@@ -38,8 +38,15 @@ async def _fetch_via_cli(query: str, limit: int) -> list[Row]:
     except json.JSONDecodeError:
         return []
     rows: list[Row] = []
-    data = env.get("data") or {}
-    videos = data.get("videos") or data.get("items") or []
+    # bili-cli returns {ok, schema_version, data: [...]} where data is the list
+    # of videos. Handle both that and an older {data:{videos:[...]}} envelope.
+    data = env.get("data") if isinstance(env, dict) else env
+    if isinstance(data, list):
+        videos = data
+    elif isinstance(data, dict):
+        videos = data.get("videos") or data.get("items") or []
+    else:
+        videos = []
     for v in videos[:limit]:
         rows.append(_row_from_cli(v))
     return rows
