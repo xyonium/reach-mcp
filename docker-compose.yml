@@ -52,11 +52,14 @@ services:
       # ===== Full credential roadmap + RSS feed recommendations =====
       # See docs/CREDENTIALS.md for step-by-step acquisition of every key.
 
-      # ===== Xiaoyuzhou / 小宇宙 (transcription, post-v1) =====
-      # GROQ_API_KEY: "gsk_..."
+      # ===== Xiaoyuzhou / 小宇宙 =====
+      # XIAOYUZHOU_ACCESS_TOKEN: "..."  # phone-SMS login token (required for search)
+      # WHISPER_BASE_URL: "http://gpu.savorcare.com:8080/v1"  # OpenAI-compatible whisper
+      # WHISPER_API_KEY: ""   # optional (LocalAI doesn't check)
+      # WHISPER_MODEL: "whisper-large"
 
-      # ===== Threads (v1 scaffold, not yet working) =====
-      # THREADS_COOKIE: "..."
+      # ===== Threads (via Apify) =====
+      # APIFY_API_TOKEN: "apify_api_..."
 
       # ===== Optional lock on the HTTP surface =====
       # REACH_MCP_API_KEY: "..."

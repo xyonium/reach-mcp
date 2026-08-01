@@ -69,5 +69,32 @@ class PoliteClient:
         resp = await self._request(url, params=params, headers=headers)
         return resp.text
 
+    async def post_json(self, url: str, *, json: Any, headers=None) -> Any:
+        """POST a JSON body and return the JSON response (paced + retried)."""
+        host = urlparse(url).netloc
+        last_exc: Exception | None = None
+        for attempt in range(self._settings.max_retries + 1):
+            await self._pace(host)
+            try:
+                resp = await self._client.post(url, json=json, headers=headers)
+            except Exception as e:  # noqa: BLE001
+                last_exc = e
+                if attempt < self._settings.max_retries:
+                    await asyncio.sleep(0.5 * (2 ** attempt))
+                    continue
+                raise
+            if resp.status_code in (429, 503):
+                ra = resp.headers.get("Retry-After")
+                delay = float(ra) if ra and ra.isdigit() else 0.5 * (2 ** attempt)
+                if attempt < self._settings.max_retries:
+                    log.warning("http %s -> %s, backing off %.2fs", url, resp.status_code, delay)
+                    await asyncio.sleep(delay)
+                    continue
+            resp.raise_for_status()
+            return resp.json()
+        if last_exc:
+            raise last_exc
+        raise httpx.HTTPError(f"exhausted retries for {url}")
+
     async def aclose(self) -> None:
         await self._client.aclose()

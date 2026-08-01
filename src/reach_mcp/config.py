@@ -61,6 +61,15 @@ class Settings:
 
     searxng_url: str = field(default_factory=lambda: _env("SEARXNG_URL", "http://searxng:8080"))
 
+    # Whisper transcription (OpenAI-compatible /v1/audio/transcriptions; self-hosted
+    # LocalAI etc.). GROQ_API_KEY is NOT used — point WHISPER_BASE_URL at any
+    # OpenAI-compatible whisper endpoint. Key may be empty (LocalAI doesn't check).
+    whisper_base_url: str = field(
+        default_factory=lambda: _env("WHISPER_BASE_URL", "http://gpu.savorcare.com:8080/v1")
+    )
+    whisper_api_key: str = field(default_factory=lambda: _env("WHISPER_API_KEY"))
+    whisper_model: str = field(default_factory=lambda: _env("WHISPER_MODEL", "whisper-large"))
+
     # Optional free-tier monthly-quota credentials (not one-time credits)
     jina_api_key: str = field(default_factory=lambda: _env("JINA_API_KEY"))
     brave_api_key: str = field(default_factory=lambda: _env("BRAVE_API_KEY"))

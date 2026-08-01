@@ -23,7 +23,10 @@
       "SCRAPECREATORS_API_KEY": "sc_...",
 
       "XHS_MCP_URL": "http://xiaohongshu-mcp:18060/mcp",
-      "GROQ_API_KEY": "gsk_..."
+      "XIAOYUZHOU_ACCESS_TOKEN": "...",
+      "WHISPER_BASE_URL": "http://gpu.savorcare.com:8080/v1",
+      "WHISPER_API_KEY": "",
+      "WHISPER_MODEL": "whisper-large"
     }
   }
 }
