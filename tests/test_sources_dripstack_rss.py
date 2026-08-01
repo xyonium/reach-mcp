@@ -11,10 +11,10 @@ from reach_mcp.sources.base import set_client
 @pytest.mark.asyncio
 async def test_dripstack_parses_results():
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"results": [
-        {"title": "Tesla Q3 earnings deep dive", "url": "https://dripstack.xyz/p/123",
-         "snippet": "Tesla beat estimates on revenue", "author": "EV Insights",
-         "publishedAt": "2026-07-15T00:00:00Z", "relevanceScore": 0.92},
+    c.get_json = AsyncMock(return_value={"items": [
+        {"title": "Tesla Q3 earnings deep dive", "slug": "tsla-q3", "publicationSlug": "ev-insights",
+         "subtitle": "Tesla beat estimates on revenue", "publishedAt": "2026-07-15T00:00:00Z",
+         "relevanceScore": 0.92},
     ]})
     set_client(c)
     rows = await get_source("dripstack").fetch("tesla earnings", 30, 10)
