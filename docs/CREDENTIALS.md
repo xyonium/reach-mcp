@@ -94,13 +94,17 @@
 
 - 部署 + **必须挂 `./data` volume 存 cookies** + 扫码登录,见 [README 小红书段](../README.md#xiaohongshu--xhs_mcp_url)。
 
-### 11. Groq(`GROQ_API_KEY`) —— 🔓 你目前还没有
+### 11. 小宇宙 + Whisper(`XIAOYUZHOU_ACCESS_TOKEN` + `WHISPER_BASE_URL`) —— 🔓 你目前还没有
 
-仅用于小宇宙(xiaoyuzhou)播客转写,**post-v1**,当前版本暂不需要。
+小宇宙(xiaoyuzhou)播客搜索 + 转写。
 
-1. 打开 [console.groq.com/keys](https://console.groq.com/keys),注册/登录
-2. **Create API Key** → 复制 `gsk_...`
-3. 设 `GROQ_API_KEY`(免费额度大,够转写用)
+- **搜索需要小宇宙登录 token**(手机短信登录才能拿):
+  1. 按 [xiaoyuzhou-api](https://github.com/ylw1997/xiaoyuzhou-api) 的流程:`send-code` → `login-sms` 拿 `accessToken`/`refreshToken`
+  2. 设 `XIAOYUZHOU_ACCESS_TOKEN`
+- **转写走 OpenAI 兼容 Whisper**(不再用 Groq):
+  1. 默认指向自托管 `WHISPER_BASE_URL=http://gpu.savorcare.com:8080/v1`(LocalAI,模型 `whisper-large`)
+  2. `WHISPER_API_KEY` 可空(LocalAI 不校验);`WHISPER_MODEL` 默认 `whisper-large`
+  3. 换任意 OpenAI 兼容端点即可(如 Groq 的 `api.groq.com/openai/v1`)
 
 ---
 
@@ -202,7 +206,7 @@ https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml
 
 | 键 | 你目前 | 去哪拿 |
 |----|--------|--------|
-| `GROQ_API_KEY` | ❌ | [console.groq.com/keys](https://console.groq.com/keys) |
+| `XIAOYUZHOU_ACCESS_TOKEN` | ❌ | 小宇宙手机短信登录(上文第 11 条);`WHISPER_*` 默认已指向自托管,无需注册 |
 | `TRUTHSOCIAL_TOKEN` | ❌ | DevTools 抓 bearer(上文第 9 条) |
 | `JINA_API_KEY` | ❌ | [jina.ai](https://jina.ai/keys/) |
 | `RSS_FEEDS` | 未配 | 上文第 4 级清单,建议先配 `hnrss.org/frontpage` + `federalreserve.gov/feeds/press_all.xml` + `feeds.bbci.co.uk/news/world/rss.xml` 三件套 |

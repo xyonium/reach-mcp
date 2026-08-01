@@ -41,7 +41,7 @@
 | **Chinese** | `xueqiu` | scrape | none |
 | | `v2ex` | API | none |
 | | `bilibili` | bili-cli (preferred) / public API fallback | none (install `bili` for stability) |
-| | `xiaoyuzhou` | public API | `GROQ_API_KEY` (optional, for transcription post-v1) |
+| | `xiaoyuzhou` | public API | `XIAOYUZHOU_ACCESS_TOKEN` (login); `WHISPER_BASE_URL` (transcription) |
 | | `xiaohongshu` | xiaohongshu-mcp companion | `XHS_MCP_URL` |
 | **Login-gated** *(off by default)* | `x` | cookies | `AUTH_TOKEN`/`CT0` |
 | | `truthsocial` | Mastodon API | `TRUTHSOCIAL_TOKEN` |
@@ -199,7 +199,10 @@ SCRAPECREATORS_API_KEY="sc_..."              # ScrapeCreators key (tiktok + inst
 
 # ===== Chinese sources =====
 XHS_MCP_URL="http://xiaohongshu-mcp:18060/mcp"  # xiaohongshu-mcp companion service URL
-GROQ_API_KEY="gsk_..."                       # Groq API key (xiaoyuzhou transcription, post-v1)
+XIAOYUZHOU_ACCESS_TOKEN="..."                # 小宇宙 access token (phone-SMS login; required for search)
+WHISPER_BASE_URL="http://gpu.savorcare.com:8080/v1"  # OpenAI-compatible whisper endpoint (xiaoyuzhou transcription)
+WHISPER_API_KEY=""                           # optional; LocalAI doesn't check it
+WHISPER_MODEL="whisper-large"                # model name (default: whisper-large)
 
 
 # ===== Server settings =====
@@ -355,7 +358,13 @@ Prefers the community-vetted [bili-cli](https://github.com/public-clis/bilibili-
 
 #### Xiaoyuzhou / 小宇宙
 
-Free podcast search -- always available, no key needed. Returns episode titles, descriptions, and metadata. Whisper transcription via Groq (`GROQ_API_KEY`) is deferred to post-v1.
+Podcast search + Whisper transcription. **Search requires a 小宇宙 account token** (phone-SMS login):
+
+1. Login flow: the app sends a code to your phone, which returns `accessToken`/`refreshToken` (see [xiaoyuzhou-api](https://github.com/ylw1997/xiaoyuzhou-api) for the exact flow)
+2. Set `XIAOYUZHOU_ACCESS_TOKEN=...`
+3. Transcription uses an OpenAI-compatible Whisper endpoint (`WHISPER_BASE_URL`, default `http://gpu.savorcare.com:8080/v1`, model `whisper-large`). Point it at any self-hosted LocalAI or Groq's `api.groq.com/openai/v1` — the API key may be empty if your server doesn't check it.
+
+Audio constraint (Whisper): files ≤ 25 MB, formats mp3/mp4/mpeg/mpga/m4a/wav/webm; no explicit duration cap at the API layer.
 
 #### `read_url` tool (Jina Reader)
 
