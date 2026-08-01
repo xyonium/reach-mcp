@@ -35,16 +35,33 @@ async def _jina_search(query: str, limit: int) -> list[Row]:
         "Accept": "application/json",
         "X-Retain-Images": "none",
     }
-    # Scope to LinkedIn public content (posts + pulse articles)
-    scoped = f"site:linkedin.com/posts OR site:linkedin.com/pulse {query}"
+    # Note: s.jina.ai returns HTTP 500 for any query containing "site:linkedin.com"
+    # (Jina's backend rejects the site: scoping), so we use the bare query and
+    # filter for linkedin.com URLs client-side instead.
     try:
         data = await client.get_json(
             "https://s.jina.ai/",
-            params={"q": scoped, "count": str(min(limit, 20))},
+            params={"q": query, "count": str(min(limit * 3, 50))},
             headers=headers,
         )
     except Exception:
         return []
+    rows: list[Row] = []
+    results = data.get("data") or []
+    for r in results:
+        url = r.get("url") or ""
+        if "linkedin.com" not in url:
+            continue  # drop non-LinkedIn results from the unscopped query
+        title = (r.get("title") or "")[:200]
+        content = r.get("content") or ""
+        rows.append(Row(
+            source="linkedin", id=url or title, title=title, url=url,
+            author=None, date=r.get("publishedTime"),
+            engagement={}, text=content[:500],
+        ))
+        if len(rows) >= limit:
+            break
+    return rows
     rows: list[Row] = []
     results = data.get("data") or []
     for r in results[:limit]:

@@ -36,14 +36,20 @@ class Dripstack(Source):
         except Exception:
             return []
         rows: list[Row] = []
-        items = data.get("results") if isinstance(data, dict) else data
+        items = data.get("items") if isinstance(data, dict) else data
         if not isinstance(items, list):
             items = []
         for item in items[:limit]:
             title = item.get("title") or item.get("headline") or ""
+            # API has no full URL; items carry slug + publicationSlug. Build a
+            # stable permalink from them (best effort).
+            slug = item.get("slug") or item.get("id") or ""
+            pub = item.get("publicationSlug") or ""
             url = item.get("url") or item.get("link") or ""
-            snippet = (item.get("snippet") or item.get("summary")
-                       or item.get("whyMatched") or "")
+            if not url and slug:
+                url = f"https://dripstack.xyz/{pub}/{slug}" if pub else f"https://dripstack.xyz/{slug}"
+            snippet = (item.get("subtitle") or item.get("snippet")
+                       or item.get("summary") or item.get("whyMatched") or "")
             # strip HTML tags from snippet if present
             text = re.sub(r"<[^>]+>", "", snippet) if snippet else ""
             rows.append(Row(
