@@ -139,6 +139,9 @@ See [docker-compose.yml](docker-compose.yml) for a full example with all availab
 
 **2. entrypoint.sh** -- [deploy/entrypoint.sh](deploy/entrypoint.sh) installs reach-mcp's runtime deps on first start (cached under the mounted volume): `yt-dlp` (youtube), `bili-cli` (bilibili - handles B站 wbi/412), `gh` (github), Go + `digg`/`arxiv`/`techmeme` pp-cli. Copy it into your mcpo config dir.
 
+> **⚠️ mcp SDK 2.x pin:** mcpo 0.0.20 (and several `uvx`-launched MCP servers) import 1.x mcp SDK symbols that mcp 2.0 renamed, and crash with `ImportError: cannot import name 'streamablehttp_client'...` / `McpError`. The entrypoint sets `UV_CONSTRAINT=/config/uv-constraints.txt` (`mcp<2`), which mcpo inherits into every child `uvx` process. Ship `deploy/uv-constraints.txt` next to your entrypoint.sh to customize; if absent, the entrypoint writes the same default.
+
+
 **3. compose** -- [deploy/docker-compose.mcpo.yml](deploy/docker-compose.mcpo.yml) mirrors a production setup with `UV_CACHE_DIR`/`UV_TOOL_DIR`/`npm_config_cache` persistence, plus optional Searxng and `xiaohongshu-mcp` companion services:
 ```yaml
 mcp:

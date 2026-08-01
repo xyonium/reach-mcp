@@ -7,7 +7,10 @@
 #
 #   1. Copy deploy/entrypoint.sh to your mcpo config dir (e.g. /mnt/docker/mcpserver/entrypoint.sh)
 #   2. Put a config.json next to it listing reach-mcp (see deploy/mcpo-config.example.json)
-#   3. `docker compose -f deploy/docker-compose.mcpo.yml up -d`
+#   3. (optional) Copy deploy/uv-constraints.txt next to entrypoint.sh to pin
+#      mcp<2 for mcpo (mcpo 0.0.20 is incompatible with mcp SDK 2.x). If absent,
+#      the entrypoint writes the same default to /config/uv-constraints.txt.
+#   4. `docker compose -f deploy/docker-compose.mcpo.yml up -d`
 #
 # The entrypoint installs reach-mcp's runtime deps (yt-dlp, bili-cli, gh, Go,
 # digg/arxiv/techmeme pp-cli) on first start, cached under the mounted volume.
