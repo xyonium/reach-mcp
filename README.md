@@ -215,6 +215,8 @@ REACH_MCP_MAX_RETRIES="3"                    # max retries on transient errors (
 
 ### Credential guide
 
+> **按顺序获取每个 key 的完整步骤、入口 URL、以及推荐 RSS feed 清单,见 [docs/CREDENTIALS.md](docs/CREDENTIALS.md)**。本节省略版;下面列出每个 key 的用途和快速要点。
+
 #### X / Twitter (`AUTH_TOKEN`, `CT0`)
 
 1. Log into x.com in any browser
@@ -279,23 +281,43 @@ Free and keyless -- always available, no setup. Search over premium financial ne
 Generic RSS/Atom source, free (uses `feedparser`, already a dependency). Set `RSS_FEEDS` to a comma-separated list of feed URLs; entries are filtered to the query within the recency window.
 
 ```bash
-RSS_FEEDS="https://blog.example.com/feed,https://hnrss.org/frontpage"
+RSS_FEEDS="https://hnrss.org/frontpage,https://www.federalreserve.gov/feeds/press_all.xml"
 ```
+
+> 📚 **已验证的推荐 feed 清单**——科技媒体、财经市场、政府经济数据/政策发布、政治军事、公司财报(SEC EDGAR),见 [docs/CREDENTIALS.md](docs/CREDENTIALS.md) 第 4 级。
 
 #### Xiaohongshu / 小红书 (`XHS_MCP_URL`)
 
 Uses the community-vetted [xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp) Go server (15K+ stars) as backend.
 
-**Docker (recommended):** Add to your compose file (see `docker-compose.yml`):
+**Docker (recommended):** Add to your compose file (see `docker-compose.yml`). The `./data` volume is **required** — it stores the login cookies (they are lost on recreate without it); `./images` is only needed if you publish notes:
 ```yaml
 xiaohongshu-mcp:
   image: ghcr.io/xpzouying/xiaohongshu-mcp:latest
   ports: ["18060:18060"]
   restart: unless-stopped
+  init: true
+  tty: true
+  volumes:
+    - ./data:/app/data
+    - ./images:/app/images
+  environment:
+    - COOKIES_PATH=/app/data/cookies.json
+    - HOME=/app/data/home
+    - XDG_CONFIG_HOME=/app/data/config
 ```
-Then run the login helper once and set `XHS_MCP_URL=http://xiaohongshu-mcp:18060/mcp`.
+Then set `XHS_MCP_URL=http://xiaohongshu-mcp:18060/mcp` and log in (below).
 
-**Without Docker:** Download the binary from [releases](https://github.com/xpzouying/xiaohongshu-mcp/releases), run the login helper, then start the server. Set `XHS_MCP_URL=http://localhost:18060/mcp`.
+**Login (QR scan, once):** the image runs only the MCP server — there is no separate login binary. Start it, then scan the QR via any MCP client:
+```bash
+npx @modelcontextprotocol/inspector      # MCP Inspector
+# connect to http://localhost:18060/mcp
+# call the `login` tool → QR code appears → scan with the 小红书 App
+# call `check_login` to confirm (re-scan once more if prompted)
+```
+Notes: open the App *before* scanning (the QR expires quickly); don't log the same account in elsewhere on the web — 小红书 single-logs-in, a web login kicks the MCP account out. Cookies persist in the `./data` volume.
+
+**Without Docker:** Download the binary from [releases](https://github.com/xpzouying/xiaohongshu-mcp/releases). Login is the same QR flow via the MCP `login` tool (or `go run cmd/login/main.go` from source), then start the server and set `XHS_MCP_URL=http://localhost:18060/mcp`.
 
 #### Web search (`SEARXNG_URL`)
 

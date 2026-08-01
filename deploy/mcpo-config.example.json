@@ -14,7 +14,7 @@
       "BSKY_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx",
       "JINA_API_KEY": "jina_...",
       "BRAVE_API_KEY": "BSA_...",
-      "RSS_FEEDS": "https://blog.example.com/feed,https://hnrss.org/frontpage",
+      "RSS_FEEDS": "https://hnrss.org/frontpage,https://www.federalreserve.gov/feeds/press_all.xml",
 
       "AUTH_TOKEN": "...",
       "CT0": "...",
