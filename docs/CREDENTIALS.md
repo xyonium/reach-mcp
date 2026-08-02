@@ -92,18 +92,61 @@
 
 用社区背书的 [xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp) Go 服务器(15K+ star)做后端。`XHS_MCP_URL` 指向它,默认 `http://localhost:18060/mcp`。
 
-- 部署 + **必须挂 `./data` volume 存 cookies** + 扫码登录,见 [README 小红书段](../README.md#xiaohongshu--xhs_mcp_url)。
+**部署(compose 参考 [`docker-compose.yml`](../docker-compose.yml) 底部):**
+```yaml
+xiaohongshu-mcp:
+  image: xpzouying/xiaohongshu-mcp:latest
+  ports: ["18060:18060"]
+  restart: unless-stopped
+  init: true
+  tty: true
+  volumes:
+    - ./data:/app/data        # 必须:cookies + 运行数据持久化
+    - ./images:/app/images    # 仅发笔记需要
+  environment:
+    - COOKIES_PATH=/app/data/cookies.json
+    - HOME=/app/data/home
+    - XDG_CONFIG_HOME=/app/data/config
+```
+
+**扫码登录(一次性,用 MCP Inspector):**
+```bash
+npx @modelcontextprotocol/inspector
+# connect 到 http://localhost:18060/mcp
+# 调 `login` 工具 → 出二维码 → 小红书 App 扫码
+# 调 `check_login` 确认(必要时再扫一次)
+```
+注意:先打开 App 再扫(二维码会过期);登录后别在网页端再登同账号(单点登录会踢出 MCP)。
+
+**cookies 存在 `./data` volume**——没挂 volume 则容器重建后登录态丢失,需重新扫码。无需 proxy(国内直连即可);如需要可设 `XHS_PROXY`。
 
 ### 11. 小宇宙 + Whisper(`XIAOYUZHOU_ACCESS_TOKEN` + `WHISPER_BASE_URL`) —— 🔓 你目前还没有
 
 小宇宙(xiaoyuzhou)播客搜索 + 转写。
 
-- **搜索需要小宇宙登录 token**(手机短信登录才能拿):
-  1. 按 [xiaoyuzhou-api](https://github.com/ylw1997/xiaoyuzhou-api) 的流程:`send-code` → `login-sms` 拿 `accessToken`/`refreshToken`
-  2. 设 `XIAOYUZHOU_ACCESS_TOKEN`
-- **转写走 OpenAI 兼容 Whisper**(不再用 Groq):
+**获取 `XIAOYUZHOU_ACCESS_TOKEN`(普通用户即可,不是主播专属):**
+
+小宇宙搜索 API 需要登录 token(手机短信登录)。任何注册用户都能拿,流程(参照 [xiaoyuzhou-api](https://github.com/ylw1997/xiaoyuzhou-api) 的测试客户端):
+
+```bash
+# 1. 发验证码到手机(需已注册小宇宙账号;未注册会报 "该手机号未注册小宇宙")
+curl -X POST https://podcaster-api.xiaoyuzhoufm.com/v1/auth/send-code \
+  -H "Content-Type: application/json;charset=UTF-8" \
+  -d '{"areaCode":"+86","mobilePhoneNumber":"你的手机号"}'
+
+# 2. 用验证码登录 → 响应头里返回 x-jike-access-token + x-jike-refresh-token
+curl -X POST https://podcaster-api.xiaoyuzhoufm.com/v1/auth/login-with-sms \
+  -H "Content-Type: application/json;charset=UTF-8" \
+  -d '{"areaCode":"+86","mobilePhoneNumber":"你的手机号","verifyCode":"收到的验证码"}'
+# 从响应头 X-Jike-Access-Token 取值 → 设 XIAOYUZHOU_ACCESS_TOKEN
+```
+
+没有注册?打开小宇宙 App 用手机号注册一个即可(免费,普通听众账号就行)。
+
+**转写走 OpenAI 兼容 Whisper**(不再用 Groq):
   1. 默认指向自托管 `WHISPER_BASE_URL=http://gpu.savorcare.com:8080/v1`(LocalAI,模型 `whisper-large`)
   2. `WHISPER_API_KEY` 可空(LocalAI 不校验);`WHISPER_MODEL` 默认 `whisper-large`
+  3. 换任意 OpenAI 兼容端点即可(如 Groq 的 `api.groq.com/openai/v1`)
   3. 换任意 OpenAI 兼容端点即可(如 Groq 的 `api.groq.com/openai/v1`)
 
 ---
