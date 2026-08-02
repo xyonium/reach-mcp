@@ -54,9 +54,13 @@ services:
 
       # ===== Xiaoyuzhou / 小宇宙 =====
       # XIAOYUZHOU_ACCESS_TOKEN: "..."  # phone-SMS login token (required for search)
+      # XIAOYUZHOU_REFRESH_TOKEN: "..."  # refresh token (access+refresh both needed)
       # WHISPER_BASE_URL: "http://gpu.savorcare.com:8080/v1"  # OpenAI-compatible whisper
       # WHISPER_API_KEY: ""   # optional (LocalAI doesn't check)
       # WHISPER_MODEL: "whisper-large"
+
+      # ===== Xueqiu / 雪球 =====
+      # XUEQIU_COOKIE: "xq_a_token=...; u=..."  # login cookie string (from Chrome; required for search)
 
       # ===== Threads (via Apify) =====
       # APIFY_API_TOKEN: "apify_api_..."

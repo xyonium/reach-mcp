@@ -24,9 +24,11 @@
 
       "XHS_MCP_URL": "http://xiaohongshu-mcp:18060/mcp",
       "XIAOYUZHOU_ACCESS_TOKEN": "...",
+      "XIAOYUZHOU_REFRESH_TOKEN": "...",
       "WHISPER_BASE_URL": "http://gpu.savorcare.com:8080/v1",
       "WHISPER_API_KEY": "",
-      "WHISPER_MODEL": "whisper-large"
+      "WHISPER_MODEL": "whisper-large",
+      "XUEQIU_COOKIE": "xq_a_token=...; u=..."
     }
   }
 }

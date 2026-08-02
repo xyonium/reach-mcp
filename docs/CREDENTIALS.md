@@ -147,7 +147,18 @@ curl -X POST https://podcaster-api.xiaoyuzhoufm.com/v1/auth/login-with-sms \
   1. 默认指向自托管 `WHISPER_BASE_URL=http://gpu.savorcare.com:8080/v1`(LocalAI,模型 `whisper-large`)
   2. `WHISPER_API_KEY` 可空(LocalAI 不校验);`WHISPER_MODEL` 默认 `whisper-large`
   3. 换任意 OpenAI 兼容端点即可(如 Groq 的 `api.groq.com/openai/v1`)
-  3. 换任意 OpenAI 兼容端点即可(如 Groq 的 `api.groq.com/openai/v1`)
+
+### 12. 雪球(`XUEQIU_COOKIE`)—— 需要登录 cookie,不是 key
+
+雪球搜索 API 需要**登录 cookie**(Agent-Reach 明确标注 "需要登录 Cookie")。acw_tc 反 DDoS cookie 不够,还要 `xq_a_token` 等登录 cookie。
+
+**获取 `XUEQIU_COOKIE`(从 Chrome 导出):**
+1. 浏览器登录 [xueqiu.com](https://xueqiu.com)
+2. DevTools(F12)→ Application → Cookies → `xueqiu.com`
+3. 把 **所有 cookie** 导出为 `name=value; name2=value; ...` 字符串(可右键复制,或按 Cookie-Editor 插件的 "Header String" 格式)
+4. 设 `XUEQIU_COOKIE="xq_a_token=...; u=...; ..."`(完整 cookie 字符串)
+
+> ⚠️ 用专用账号;雪球对异常 API 调用有风控。**opencli 只是获取 cookie 的方式之一,不是运行时必需**——有 cookie 字符串即可直接用 API。
 
 ---
 

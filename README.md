@@ -38,7 +38,7 @@
 | | `dripstack` | DripStack API (free, keyless) | none |
 | | `rss` | feedparser | `RSS_FEEDS` (comma-separated feed URLs) |
 | **Video** | `youtube` | yt-dlp transcripts | `YTDLP_PROXY` (optional) |
-| **Chinese** | `xueqiu` | scrape | none |
+| **Chinese** | `xueqiu` | API (login cookie) | `XUEQIU_COOKIE` |
 | | `v2ex` | API | none |
 | | `bilibili` | bili-cli (preferred) / public API fallback | none (install `bili` for stability) |
 | | `xiaoyuzhou` | public API | `XIAOYUZHOU_ACCESS_TOKEN` (login); `WHISPER_BASE_URL` (transcription) |
@@ -224,9 +224,11 @@ SCRAPECREATORS_API_KEY="sc_..."              # ScrapeCreators key (tiktok + inst
 # ===== Chinese sources =====
 XHS_MCP_URL="http://xiaohongshu-mcp:18060/mcp"  # xiaohongshu-mcp companion service URL
 XIAOYUZHOU_ACCESS_TOKEN="..."                # 小宇宙 access token (phone-SMS login; required for search)
+XIAOYUZHOU_REFRESH_TOKEN="..."               # 小宇宙 refresh token (for API; access+refresh both needed)
 WHISPER_BASE_URL="http://gpu.savorcare.com:8080/v1"  # OpenAI-compatible whisper endpoint (xiaoyuzhou transcription)
 WHISPER_API_KEY=""                           # optional; LocalAI doesn't check it
 WHISPER_MODEL="whisper-large"                # model name (default: whisper-large)
+XUEQIU_COOKIE="xq_a_token=...; u=..."        # 雪球 login cookie string (from Chrome; required for search)
 
 
 # ===== Server settings =====
