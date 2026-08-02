@@ -19,33 +19,46 @@ def _has_cli() -> bool:
 
 
 async def _fetch_via_cli(query: str, days: int, limit: int) -> list[Row]:
-    """`techmeme-pp-cli search <q> --since <days>d --limit N --agent --json`."""
+    """`techmeme-pp-cli since <Nd> --json --agent`.
+
+    The CLI has no "search" subcommand; `since` lists recent headlines from its
+    local SQLite cache (hydrated by `techmeme-pp-cli sync`). We sync first (cheap,
+    idempotent) then filter the window by the query client-side.
+    """
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "techmeme-pp-cli", "search", query,
-            "--since", f"{days}d", "--limit", str(limit),
-            "--agent", "--json",
+        sync_proc = await asyncio.create_subprocess_exec(
+            "techmeme-pp-cli", "sync", "--json",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
+        await asyncio.wait_for(sync_proc.communicate(), timeout=60)
+        proc = await asyncio.create_subprocess_exec(
+            "techmeme-pp-cli", "since", f"{days}d", "--json", "--agent",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
     except Exception:
         return []
     try:
         data = json.loads(stdout)
     except json.JSONDecodeError:
         return []
-    items = data if isinstance(data, list) else (data.get("items") or [])
+    items = data if isinstance(data, list) else (data.get("items") or data.get("results") or [])
+    ql = query.lower()
     rows: list[Row] = []
-    for i, item in enumerate(items[:limit]):
-        url = item.get("url") or item.get("link") or ""
-        title = item.get("title") or item.get("headline") or f"Techmeme {i+1}"
+    for i, item in enumerate(items):
+        url = item.get("link") or item.get("url") or ""
+        title = item.get("headline") or item.get("title") or f"Techmeme {i+1}"
+        if ql and ql not in title.lower():
+            continue  # CLI has no search; filter the since-window by query
         rows.append(Row(
             source="techmeme", id=url or str(i),
             title=title, url=url,
             author=item.get("source") or item.get("author"),
-            date=item.get("date") or item.get("publishedAt"),
+            date=item.get("time") or item.get("date") or item.get("publishedAt"),
             engagement={}, text=(item.get("summary") or item.get("description") or "")[:500],
         ))
+        if len(rows) >= limit:
+            break
     return rows
 
 
