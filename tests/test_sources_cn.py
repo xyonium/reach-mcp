@@ -22,13 +22,15 @@ async def test_v2ex_parses_topics():
 
 @pytest.mark.asyncio
 async def test_xueqiu_api_primary_without_cli(monkeypatch):
-    """Without OpenCLI, xueqiu uses the headless JSON API only."""
+    """Without OpenCLI and without cookie, xueqiu uses the public suggest API."""
     monkeypatch.setattr("reach_mcp.sources.xueqiu._has_cli", lambda: False)
-    c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": {"result": [
-        {"symbol": "AAPL", "name": "Apple Inc.", "description": "tech giant"},
-    ]}})
-    set_client(c)
+    monkeypatch.delenv("XUEQIU_COOKIE", raising=False)
+    monkeypatch.setattr(
+        "reach_mcp.sources.xueqiu._fetch_via_api",
+        AsyncMock(return_value=[Row(source="xueqiu", id="AAPL", title="Apple Inc.",
+                                    url="https://xueqiu.com/S/AAPL",
+                                    author=None, date=None, engagement={}, text="")]),
+    )
     rows = await get_source("xueqiu").fetch("AAPL", 30, 10)
     assert rows and rows[0].title == "Apple Inc."
     assert "AAPL" in rows[0].url
@@ -38,17 +40,19 @@ async def test_xueqiu_api_primary_without_cli(monkeypatch):
 async def test_xueqiu_merges_opencli_boost(monkeypatch):
     """With OpenCLI installed, its extra hits are merged onto the API results."""
     monkeypatch.setattr("reach_mcp.sources.xueqiu._has_cli", lambda: True)
+    monkeypatch.delenv("XUEQIU_COOKIE", raising=False)
     monkeypatch.setattr(
         "reach_mcp.sources.xueqiu._fetch_via_cli",
         AsyncMock(return_value=[Row(source="xueqiu", id="TSLA", title="Tesla",
                                     url="https://xueqiu.com/S/TSLA",
                                     author=None, date=None, engagement={}, text="")]),
     )
-    c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": {"result": [
-        {"symbol": "AAPL", "name": "Apple"},
-    ]}})
-    set_client(c)
+    monkeypatch.setattr(
+        "reach_mcp.sources.xueqiu._fetch_via_api",
+        AsyncMock(return_value=[Row(source="xueqiu", id="AAPL", title="Apple",
+                                    url="https://xueqiu.com/S/AAPL",
+                                    author=None, date=None, engagement={}, text="")]),
+    )
     rows = await get_source("xueqiu").fetch("stock", 30, 10)
     titles = [r.title for r in rows]
     assert "Apple" in titles and "Tesla" in titles  # API + OpenCLI merged

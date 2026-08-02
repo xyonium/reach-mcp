@@ -1,26 +1,111 @@
-"""雪球 (Xueqiu) stock search.
+"""雪球 (Xueqiu) stock search via API with optional login cookie.
 
-Primary: public stock-suggest JSON API (`xueqiu.com/query/v1/suggest_stock.json`),
-headless and free. The OpenCLI `xueqiu` adapter (a desktop Chrome bridge) is
-used only as an installed-boost: when `opencli` is on PATH it runs in parallel
-and any extra hits are merged in. This keeps a server-side path first and only
-opts into the desktop backend when the user has installed it.
+Mirrors Agent-Reach's xueqiu channel: the public suggest/search endpoints
+require a logged-in session cookie (xq_a_token). Without it they return
+400016/empty. Provide XUEQIU_COOKIE (a "name=value; name2=value" string from
+Chrome's xueqiu.com cookies) to unlock authenticated search/quote endpoints.
+
+OpenCLI (desktop Chrome bridge) remains an optional boost when installed.
 """
 from __future__ import annotations
 
 import asyncio
+import http.cookiejar
 import json
+import os
 import shutil
+import urllib.request
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import Row, Source, register_source
+
+_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+_REFERER = "https://xueqiu.com/"
+_API_BASE = "https://xueqiu.com"
 
 
 def _has_cli() -> bool:
     return shutil.which("opencli") is not None
 
 
+def _cookie_str() -> str:
+    return os.environ.get("XUEQIU_COOKIE", "").strip()
+
+
+def _build_opener() -> urllib.request.OpenerDirector:
+    """Cookie-aware opener, seeded with XUEQIU_COOKIE if set."""
+    jar = http.cookiejar.CookieJar()
+    for pair in _cookie_str().split(";"):
+        pair = pair.strip()
+        if "=" not in pair:
+            continue
+        name, _, value = pair.partition("=")
+        jar.set_cookie(http.cookiejar.Cookie(
+            version=0, name=name.strip(), value=value.strip(),
+            port=None, port_specified=False, domain=".xueqiu.com",
+            domain_specified=True, domain_initial_dot=True, path="/",
+            path_specified=True, secure=True, expires=None, discard=True,
+            comment=None, comment_url=None, rest={},
+        ))
+    return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+
+
+def _get_json(url: str, timeout: int = 20):
+    opener = _build_opener()
+    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Referer": _REFERER})
+    with opener.open(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+async def _search_stock(query: str, limit: int) -> list[Row]:
+    """Search stocks via xueqiu.com/stock/search.json (needs login cookie)."""
+    if not _cookie_str():
+        return []
+    try:
+        data = await asyncio.to_thread(
+            _get_json, f"{_API_BASE}/stock/search.json?code={query}&size={limit}"
+        )
+    except Exception:  # noqa: BLE001
+        return []
+    rows: list[Row] = []
+    for s in (data.get("stocks") or [])[:limit]:
+        code = s.get("code") or s.get("symbol") or ""
+        name = s.get("name") or code
+        rows.append(Row(
+            source="xueqiu", id=str(code),
+            title=name,
+            url=f"https://xueqiu.com/S/{code}" if code else "",
+            author=None, date=None,
+            engagement={}, text=(s.get("exchange") or "")[:500],
+        ))
+    return rows
+
+
+async def _fetch_via_api(query: str, limit: int) -> list[Row]:
+    """Fallback: public suggest API (works without login for some queries)."""
+    try:
+        data = await asyncio.to_thread(
+            _get_json, f"{_API_BASE}/query/v1/suggest_stock.json?q={query}&count={limit}"
+        )
+    except Exception:  # noqa: BLE001
+        return []
+    rows: list[Row] = []
+    for s in ((data.get("data") or {}).get("result") or [])[:limit]:
+        if not isinstance(s, dict):
+            continue
+        code = s.get("symbol") or s.get("code") or s.get("id") or ""
+        rows.append(Row(
+            source="xueqiu", id=str(code),
+            title=s.get("name") or s.get("stockName") or code,
+            url=f"https://xueqiu.com/S/{code}" if code else "",
+            author=None, date=None,
+            engagement={}, text=(s.get("description") or "")[:500],
+        ))
+    return rows
+
+
 async def _fetch_via_cli(query: str, limit: int) -> list[Row]:
-    """`opencli xueqiu search "<query>"` - searches stocks by code or name."""
+    """OpenCLI boost (desktop Chrome bridge) when installed."""
     try:
         proc = await asyncio.create_subprocess_exec(
             "opencli", "xueqiu", "search", query,
@@ -28,75 +113,43 @@ async def _fetch_via_cli(query: str, limit: int) -> list[Row]:
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return []
     try:
         env = json.loads(stdout)
     except json.JSONDecodeError:
         return []
-    if isinstance(env, dict) and env.get("ok") is False:
-        return []
     data = env.get("data") if isinstance(env, dict) else env
-    items = _extract_items(data)
-    return [_row_from_cli(s) for s in items[:limit]]
-
-
-def _extract_items(data) -> list[dict]:
-    if isinstance(data, list):
-        return data
-    if isinstance(data, dict):
-        for k in ("items", "results", "stocks", "list"):
-            v = data.get(k)
-            if isinstance(v, list):
-                return v
-    return []
-
-
-def _row_from_cli(s: dict) -> Row:
-    code = s.get("symbol") or s.get("code") or s.get("id") or ""
-    name = s.get("name") or s.get("stockName") or code
-    return Row(
-        source="xueqiu", id=str(code),
-        title=name,
-        url=f"https://xueqiu.com/S/{code}" if code else "",
-        author=None, date=None,
-        engagement={}, text=(s.get("description") or "")[:500],
-    )
-
-
-async def _fetch_via_api(query: str, limit: int) -> list[Row]:
-    """Fallback: Xueqiu public stock-suggest JSON API. Requires a session
-    cookie (xq_a_token) for most queries; degrades to [] otherwise."""
-    client = get_client()
-    try:
-        data = await client.get_json(
-            "https://xueqiu.com/query/v1/suggest_stock.json",
-            params={"q": query, "count": str(min(limit, 20))},
-            headers={"User-Agent": "reach-mcp/0.1",
-                     "Referer": "https://xueqiu.com/"},
-        )
-    except Exception:
-        return []
+    items = data if isinstance(data, list) else []
     rows: list[Row] = []
-    for s in (data.get("data") or {}).get("result") or []:
-        if not isinstance(s, dict):
-            continue
-        rows.append(_row_from_cli(s))
-    return rows[:limit]
+    for s in items[:limit]:
+        code = s.get("symbol") or s.get("code") or s.get("id") or ""
+        rows.append(Row(
+            source="xueqiu", id=str(code),
+            title=s.get("name") or s.get("stockName") or code,
+            url=f"https://xueqiu.com/S/{code}" if code else "",
+            author=None, date=None,
+            engagement={}, text=(s.get("description") or "")[:500],
+        ))
+    return rows
 
 
 @register_source
 class Xueqiu(Source):
     name = "xueqiu"
     description = (
-        "雪球 stock search via public JSON API (headless, free). OpenCLI adapter "
-        "used as an extra boost when installed (desktop only)."
+        "雪球 stock search via API (needs XUEQIU_COOKIE login cookie for search; "
+        "public suggest API fallback; OpenCLI boost when installed)."
     )
     host = "xueqiu.com"
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
-        # Server-side JSON API is primary (headless). OpenCLI is a desktop-only
-        # boost: run it in parallel when installed and merge any extra hits.
+        # With login cookie: use authenticated search. Otherwise fall back to the
+        # public suggest API (may return [] for many queries).
+        if _cookie_str():
+            rows = await _search_stock(query, limit)
+            if rows:
+                return rows
         api_rows = await _fetch_via_api(query, limit)
         if _has_cli():
             cli_rows = await _fetch_via_cli(query, limit)
