@@ -78,12 +78,12 @@ async def test_xiaoyuzhou_with_token_and_episodes(monkeypatch):
     c.post_json = AsyncMock()
     # search -> one podcast; episode list -> one episode with audio URL
     c.post_json.side_effect = [
-        {"data": {"data": [{"podcast": {"pid": "p1", "title": "Cast"}}]}},
-        {"data": {"data": [{
+        {"data": [{"type": "PODCAST", "pid": "p1", "title": "Cast"}]},
+        {"data": [{
             "eid": "e1", "title": "Podcast ep",
             "url": "https://xyz.fm/e1", "pubDate": "2026-07-01",
             "media": {"source": {"url": "https://media.xyzcdn.net/a.m4a"}},
-        }]}},
+        }]},
     ]
     set_client(c)
     monkeypatch.setattr(

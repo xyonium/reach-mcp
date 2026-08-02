@@ -18,63 +18,101 @@ from reach_mcp.whisper import download_audio, transcribe
 
 log = logging.getLogger(__name__)
 
-# Xiaoyuzhou app headers (mirrors the reference xiaoyuzhou-api client).
+# Xiaoyuzhou app headers — mirror the reference xiaoyuzhou-api client exactly.
+# The API rejects requests missing the app headers or the refresh token
+# ("无效参数"/400). device-id is derived from the refresh token.
 _UA = "Xiaoyuzhou/2.57.1 (build:1576; iOS 17.4.1)"
 _APP_HEADERS = {
+    "Host": "api.xiaoyuzhoufm.com",
     "User-Agent": _UA,
+    "Market": "AppStore",
+    "App-BuildNo": "1576",
+    "OS": "ios",
+    "Manufacturer": "Apple",
     "BundleID": "app.podcast.cosmos",
+    "Connection": "keep-alive",
+    "Accept-Language": "zh-Hant-HK;q=1.0, zh-Hans-CN;q=0.9",
+    "Model": "iPhone14,2",
+    "app-permissions": "4",
+    "Accept": "*/*",
     "App-Version": "2.57.1",
-    "x-jike-device-id": "81ADBFD6-6921-482B-9AB9-A29E7CC7BB55",
-    "Accept-Language": "zh-Hans-CN;q=0.9",
+    "WifiConnected": "true",
+    "OS-Version": "17.4.1",
+    "x-custom-xiaoyuzhou-app-dev": "",
+    "abtest-info": "{}",
+    "Timezone": "Asia/Shanghai",
 }
 _API = "https://api.xiaoyuzhoufm.com"
 
 
-def _token() -> str:
-    return os.environ.get("XIAOYUZHOU_ACCESS_TOKEN", "").strip()
+def _token(name: str) -> str:
+    return os.environ.get(name, "").strip()
+
+
+def _device_id(token: str) -> str:
+    """Deterministic device id derived from the refresh token (matches upstream)."""
+    import re
+    if not token or len(token) < 10:
+        return "81ADBFD6-6921-482B-9AB9-A29E7CC7BB55"
+    normalized = re.sub(r"[^a-f0-9]", "", token.lower())
+    if len(normalized) < 32:
+        normalized = normalized.ljust(32, "0")
+    normalized = normalized[:32]
+    return (f"{normalized[:8]}-{normalized[8:12]}-"
+            f"4{normalized[13:16]}-a{normalized[17:20]}-{normalized[20:32]}").upper()
 
 
 def _headers() -> dict:
     h = dict(_APP_HEADERS)
-    t = _token()
-    if t:
-        h["x-jike-access-token"] = t
+    access = _token("XIAOYUZHOU_ACCESS_TOKEN")
+    refresh = _token("XIAOYUZHOU_REFRESH_TOKEN")
+    if access:
+        h["x-jike-access-token"] = access
+    if refresh:
+        h["x-jike-refresh-token"] = refresh
+    h["x-jike-device-id"] = _device_id(refresh or access)
     return h
 
 
 async def _search_podcasts(client, query: str) -> list[dict]:
-    """Search podcasts by keyword; returns list of podcast dicts (with pid)."""
+    """Search podcasts by keyword; returns list of podcast dicts (with pid).
+
+    Note: do NOT send loadMoreKey:{} — the API returns "无效参数" (400) on an
+    empty loadMoreKey. Mirrors the reference xiaoyuzhou-api client.
+    """
     try:
         data = await client.post_json(
             f"{_API}/v1/search/create",
-            json={"keyword": query, "type": "PODCAST", "loadMoreKey": {}},
+            json={"keyword": query, "type": "PODCAST"},
             headers=_headers(),
         )
     except Exception:  # noqa: BLE001
         log.debug("xiaoyuzhou search failed", exc_info=True)
         return []
-    pods = (data.get("data") or {}).get("data") or []
-    # /v1/search/create returns {data:{data:[{podcast:{...}}]}} for podcasts
+    # /v1/search/create returns {data: [ {type:PODCAST, pid, title, ...} ]}
+    pods = data.get("data") if isinstance(data, dict) else data
+    if not isinstance(pods, list):
+        return []
     out = []
     for item in pods:
-        pod = item.get("podcast") or item
-        if isinstance(pod, dict) and pod.get("pid"):
-            out.append(pod)
+        if isinstance(item, dict) and item.get("pid"):
+            out.append(item)
     return out
 
 
 async def _episodes(client, pid: str, limit: int) -> list[dict]:
-    """Fetch a podcast's recent episodes."""
+    """Fetch a podcast's recent episodes (no empty loadMoreKey — API rejects it)."""
     try:
         data = await client.post_json(
             f"{_API}/v1/episode/list",
-            json={"pid": pid, "order": "desc", "loadMoreKey": {}},
+            json={"pid": pid, "order": "desc"},
             headers=_headers(),
         )
     except Exception:  # noqa: BLE001
         log.debug("xiaoyuzhou episode list failed", exc_info=True)
         return []
-    return (data.get("data") or {}).get("data") or []
+    eps = data.get("data") if isinstance(data, dict) else data
+    return eps if isinstance(eps, list) else []
 
 
 def _episode_audio_url(e: dict) -> str:
@@ -115,10 +153,10 @@ class Xiaoyuzhou(Source):
     required_env = ("XIAOYUZHOU_ACCESS_TOKEN",)
 
     def available(self) -> bool:  # type: ignore[override]
-        return bool(_token())
+        return bool(_token("XIAOYUZHOU_ACCESS_TOKEN"))
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
-        if not _token():
+        if not _token("XIAOYUZHOU_ACCESS_TOKEN"):
             return []
         client = get_client()
         rows: list[Row] = []
