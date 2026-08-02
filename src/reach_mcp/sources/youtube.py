@@ -33,16 +33,38 @@ _YTDLP_BASE = [
 ]
 
 
+def _ytdlp_common_args(base: list[str]) -> list[str]:
+    """Return proxy/cookies args to prepend to a yt-dlp command.
+
+    Mirrors the env contract documented in docs/CREDENTIALS.md:
+      - YTDLP_PROXY: residential proxy to bypass the datacenter-IP bot-wall.
+      - YTDLP_COOKIES: path to a cookies.txt file (Netscape format) OR a browser
+        name (chrome/firefox) — see docs/CREDENTIALS.md §9.5.
+
+    When a browser-name cookie is requested, the base command's
+    ``--no-cookies-from-browser`` must be dropped (last flag wins, so leaving it
+    would silently kill the cookie path).
+    """
+    extra: list[str] = []
+    proxy = os.environ.get("YTDLP_PROXY")
+    if proxy:
+        extra += ["--proxy", proxy]
+    yt_cookies = os.environ.get("YTDLP_COOKIES")
+    if yt_cookies:
+        if os.path.exists(yt_cookies):
+            extra += ["--cookies", yt_cookies]
+        else:
+            extra += ["--cookies-from-browser", yt_cookies]
+            base[:] = [a for a in base if a != "--no-cookies-from-browser"]
+    return extra
+
+
 async def _search_videos(query: str, limit: int) -> list[dict]:
     """Search YouTube via the yt-dlp CLI (search-list page only)."""
     if shutil.which("yt-dlp") is None:
         log.warning("yt-dlp not installed; youtube source disabled")
         return []
-    cmd = [*_YTDLP_BASE, f"ytsearch{limit}:{query}"]
-    # Optional proxy for yt-dlp (SOCKS/http, e.g. via a residential relay).
-    proxy = os.environ.get("YTDLP_PROXY")
-    if proxy:
-        cmd = ["--proxy", proxy, *cmd]
+    cmd = [*_ytdlp_common_args(list(_YTDLP_BASE)), f"ytsearch{limit}:{query}"]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -117,9 +139,7 @@ async def _fetch_transcript(video_id: str) -> str:
             "--skip-download", "--no-warnings", "-o", f"{tmp}/%(id)s",
             f"https://www.youtube.com/watch?v={video_id}",
         ]
-        proxy = os.environ.get("YTDLP_PROXY")
-        if proxy:
-            cmd = ["--proxy", proxy, *cmd]
+        cmd = [*_ytdlp_common_args(cmd), *cmd]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,

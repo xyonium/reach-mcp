@@ -355,9 +355,14 @@ Notes: open the App *before* scanning (the QR expires quickly); don't log the sa
 
 Required for the `web` source. Point to your self-hosted Searxng instance (default `http://searxng:8080`). If you don't have one, [Searxng](https://github.com/searxng/searxng) runs easily in Docker.
 
-#### YouTube (`YTDLP_PROXY`)
+#### YouTube (`YTDLP_PROXY` / `YTDLP_COOKIES`)
 
-Optional. Set to an HTTP proxy URL (e.g. `http://proxy:8080`) if yt-dlp needs a proxy to reach YouTube.
+Optional. From a **datacenter IP** (e.g. the mcpo container), YouTube bot-walls yt-dlp ("Sign in to confirm you're not a bot") and search returns 0 — this is an egress restriction, not a code issue. Two workarounds:
+
+- `YTDLP_PROXY` — set to a **residential** proxy URL (e.g. `socks5://...`). A normal datacenter proxy won't help; only non-datacenter egress bypasses the wall.
+- `YTDLP_COOKIES` — path to a `cookies.txt` (Netscape format) exported from a logged-in browser, or a browser name (`chrome`/`firefox`). See `docs/CREDENTIALS.md` §9.5 for the export steps.
+
+If neither is set, `youtube` still works when reach runs from a residential/host IP (e.g. the dev machine).
 
 #### Digg (`digg-pp-cli`)
 
