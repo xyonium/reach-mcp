@@ -43,7 +43,9 @@ async def run_actor_sync(actor_id: str, run_input: dict) -> list[dict]:
     """Run an Apify Actor synchronously and return its dataset items.
 
     actor_id is the `username/actor-name` form (URL-encoded automatically).
-    Returns [] on any failure (token missing, network error, non-200).
+    Returns [] on any failure (token missing, network error, non-2xx) — except
+    quota/billing failures (402/403/429), which raise so the pipeline can
+    classify them as rate_limited instead of a silent [].
     """
     token = _token()
     if not token:
@@ -71,6 +73,12 @@ async def run_actor_sync(actor_id: str, run_input: dict) -> list[dict]:
         # run-sync-get-dataset-items returns 201 Created when it completes with
         # items in the body (2xx is success; 200/201 both carry the dataset).
         if not (200 <= resp.status_code < 300):
+            # Surface quota/billing failures explicitly so the pipeline can
+            # report them as rate_limited (actionable) instead of a silent [].
+            if resp.status_code in (402, 403, 429):
+                raise RuntimeError(
+                    f"apify {actor_id}: {resp.status_code} — {resp.text[:200]}"
+                )
             log.warning("apify actor %s returned %s: %s",
                         actor_id, resp.status_code, resp.text[:200])
             return []

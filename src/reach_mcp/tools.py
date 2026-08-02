@@ -9,7 +9,12 @@ from mcp.server.transport_security import TransportSecuritySettings
 from reach_mcp.config import Settings
 from reach_mcp.http import PoliteClient
 from reach_mcp.jina import read_url as jina_read_url
-from reach_mcp.pipeline import SourceReport, import_all_sources, run_search
+from reach_mcp.pipeline import (
+    SourceReport,
+    import_all_sources,
+    render_source_summary,
+    run_search,
+)
 from reach_mcp.sources import SOURCES, available_sources
 from reach_mcp.sources.base import Item, set_client
 from reach_mcp.synthesize import brief, rerank
@@ -29,11 +34,13 @@ _SEARCH_DESC = (
     "None=all available); `days` (int, recency window, default 30); "
     "`max_per_source` (int, row cap per source, default 20); `synthesize` (bool, "
     "default true = also LLM-rerank + write brief).\n\n"
-    "Returns: {brief: str|null, items: [Item], sources_used: [SourceReport], "
-    "available_sources: [str]}. Each Item: {source, title, url, author, date, "
-    "score, engagement, text}. A SourceReport tells you per-source "
-    "ok/gated_off/errored so a thin result is diagnosable. Call list_sources "
-    "first if unsure what's configured."
+    "Returns: {brief, items, sources_used, source_summary, available_sources}. "
+    "source_summary is one compact string: 'x:3; reddit:5 | EMPTY: rss, v2ex | "
+    "QUOTA: tiktok(monthly limit exceeded) | ERRORS: digg(429)' — successful "
+    "sources with counts, silent/empty sources merged on one line, and "
+    "rate-limited/errored sources with the reason. Each Item: {source, title, "
+    "url, author, date, score, engagement, text}. Call list_sources first if "
+    "unsure what's configured."
 )
 
 _LIST_DESC = (
@@ -123,6 +130,7 @@ def build_mcp(settings: Settings) -> FastMCP:
                 "brief": brief_text,
                 "items": [_item_to_dict(i) for i in items],
                 "sources_used": [_source_report_to_dict(r) for r in reports],
+                "source_summary": render_source_summary(reports),
                 "available_sources": available_sources(),
             }
         finally:

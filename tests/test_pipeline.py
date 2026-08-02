@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from reach_mcp.pipeline import SourceReport, cluster, dedup, score
+from reach_mcp.pipeline import (
+    SourceReport,
+    classify_error,
+    cluster,
+    dedup,
+    render_source_summary,
+    score,
+)
 from reach_mcp.sources.base import Item
 
 
@@ -45,3 +52,31 @@ def test_cluster_groups_near_dup():
 def test_source_report_status():
     r = SourceReport(source="x", status="gated_off", count=0, error=None)
     assert r.status == "gated_off"
+
+
+def test_classify_error_rate_limited():
+    assert classify_error("HTTP 429 Too Many Requests") == "rate_limited"
+    assert classify_error("monthly limit exceeded for credits") == "rate_limited"
+    assert classify_error("quota exceeded") == "rate_limited"
+
+
+def test_classify_error_generic():
+    assert classify_error("connection reset") == "errored"
+    assert classify_error("403 Forbidden") == "errored"
+
+
+def test_render_summary_groups_empty_and_shows_counts():
+    reports = [
+        SourceReport(source="x", status="ok", count=3),
+        SourceReport(source="reddit", status="ok", count=5),
+        SourceReport(source="rss", status="no_results"),
+        SourceReport(source="v2ex", status="gated_off"),
+        SourceReport(source="tiktok", status="rate_limited",
+                     error="Monthly usage limit exceeded"),
+        SourceReport(source="digg", status="errored", error="HTTP 429"),
+    ]
+    s = render_source_summary(reports)
+    assert "reddit:5; x:3" in s or "x:3; reddit:5" in s  # ok sources w/ counts
+    assert "EMPTY: rss, v2ex" in s  # silent merged on one line
+    assert "QUOTA: tiktok(" in s and "limit" in s  # quota with reason
+    assert "ERRORS: digg(" in s
