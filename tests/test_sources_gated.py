@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 from reach_mcp.sources import get_source
-from reach_mcp.sources.base import set_client
 
 
 @pytest.mark.asyncio
