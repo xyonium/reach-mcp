@@ -106,10 +106,50 @@ async def _fetch_via_cookie(query: str, limit: int) -> list[Row]:
     return rows
 
 
+async def _fetch_via_xquik(query: str, limit: int) -> list[Row]:
+    """Fallback: Xquik REST API (requires XQUIK_API_KEY, see xquik.com)."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    key = os.environ.get("XQUIK_API_KEY", "").strip()
+    if not key:
+        return []
+    url = ("https://xquik.com/api/v1/x/tweets/search"
+           f"?q={urllib.parse.quote(query)}&queryType=Top&limit={min(limit, 30)}")
+    try:
+        req = urllib.request.Request(url, headers={"X-Api-Key": key})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    tweets = data.get("data") or data.get("tweets") or []
+    if not isinstance(tweets, list):
+        return []
+    rows: list[Row] = []
+    for t in tweets:
+        if not isinstance(t, dict):
+            continue
+        author = (t.get("user") or {}).get("username") or t.get("username")
+        tid = t.get("id") or t.get("tweet_id") or ""
+        rows.append(Row(
+            source="x", id=str(tid),
+            title=(t.get("text") or "")[:120],
+            url=f"https://x.com/{author}/status/{tid}" if author else "",
+            author=author,
+            date=t.get("created_at") or t.get("createdAt"),
+            engagement={"likes": t.get("like_count") or t.get("favorite_count") or 0,
+                        "retweets": t.get("retweet_count") or 0,
+                        "replies": t.get("reply_count") or 0},
+            text=t.get("text") or "",
+        ))
+    return rows
+
+
 @register_source
 class X(Source):
     name = "x"
-    description = "X / Twitter search via bird (GraphQL) or cookie fallback (AUTH_TOKEN + CT0)."
+    description = "X / Twitter via bird (GraphQL), cookie, or Xquik (XQUIK_API_KEY)."
     host = "x.com"
     needs_auth = True
     required_env = ("AUTH_TOKEN", "CT0")
@@ -121,5 +161,8 @@ class X(Source):
             rows = await _fetch_via_bird(query, limit)
             if rows:
                 return rows
-        # Cookie fallback (bird unavailable or empty)
-        return await _fetch_via_cookie(query, limit)
+        rows = await _fetch_via_cookie(query, limit)
+        if rows:
+            return rows
+        # Last-resort: Xquik (needs XQUIK_API_KEY)
+        return await _fetch_via_xquik(query, limit)
