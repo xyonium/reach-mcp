@@ -56,6 +56,30 @@
 
 > ⚠️ **ScrapeCreators is 100 credits one-time, not free recurring.** It's now the lowest-priority fallback for tiktok/instagram/pinterest -- prefer Apify (monthly free) or OpenCLI (desktop, free). **LinkedIn uses Jina** (free `JINA_API_KEY` = monthly rate-limit quota).
 
+## Query syntax by source
+
+Each source has its own search-query rules. Multi-word/long queries may return
+fewer results on some backends — the agent should tune the query per source.
+
+| Source | Query syntax | Notes |
+|--------|-------------|-------|
+| `bluesky` | Lucene: space=AND, `"quoted phrase"`, `from:handle`, `lang:code`, `#tag`, `(a OR b)`, `-term` | Phrase/boolean recommended |
+| `stocktwits` | **ticker/crypto only** (`AAPL`, `$BTC`, `BTC`) | Non-financial topics return `[]`; resolved via symbol search |
+| `x` | Literal keyword AND — **all words must appear** | Long/multi-word queries may return few results |
+| `techmeme` | Phrase, wildcard, `AND/OR/NOT`, `sourcename:X` | Supports quoted phrases |
+| `reddit` | Space-separated words | Multiple feeds searched |
+| `digg` | Phrase match | CLI-based |
+| `arxiv` | arXiv syntax: `all:`, `ti:`, `au:`, quoted, boolean | Official Atom API |
+| `web` | Space-separated (Searxng/Brave) | Free-text |
+| `rss` | Substring match on title/summary | Filter over configured feeds |
+| `v2ex` | Substring match on latest topics | search endpoint removed; latest+filter |
+| `youtube` | yt-dlp search query | Free-text |
+| `xiaoyuzhou` | Podcast keyword search | Requires login token |
+
+General guidance: prefer **short, specific keywords** (2-4 words). Very long
+queries or phrases that only a specific site would phrase identically will
+often return `[]` — the backend isn't broken, the query is too specific.
+
 ## MCP tools
 
 ### `search` -- the primary tool
