@@ -76,6 +76,17 @@ def _resolve_symbols(topic: str, max_symbols: int = 2) -> list[str]:
             found.append(sym)
     if found:
         return found[:max_symbols]
+    # Bare uppercase ticker (AAPL, TSLA, BTC.X) — trust as-is, no finance gate.
+    # Exclude common English words that uppercase by accident (APPLE, TESLA,
+    # OPEN, etc.) — real tickers are abbreviations, not whole words.
+    bare = topic.strip().upper()
+    _COMMON_WORDS = {"APPLE", "TESLA", "OPEN", "AI", "IRA", "LIFE", "NEW",
+                     "TIME", "HOME", "STAR", "PLAY", "GOOD", "WORK", "SOFT",
+                     "WINDOW", "CLOUD"}
+    if bare not in _COMMON_WORDS and re.fullmatch(
+        r"[A-Z]{1,5}(?:[.\-][A-Z0-9]{1,3})?", bare
+    ):
+        return [bare]
     for word in topic.lower().split():
         if word in _CRYPTO_ALIASES:
             sym = _CRYPTO_ALIASES[word]
