@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from reach_mcp.sources import get_source
-from reach_mcp.sources.base import set_client
+from reach_mcp.sources.base import Row, set_client
 
 
 @pytest.mark.asyncio
@@ -100,12 +100,13 @@ async def test_bilibili_prefers_cli(monkeypatch):
         "reach_mcp.sources.bilibili._fetch_via_cli",
         AsyncMock(return_value=[]),  # cli returns nothing -> falls through to API
     )
-    c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": {"result": [{
-        "bvid": "BV1", "title": "Vid", "pubdate": 1751328000,
-        "owner": {"name": "up"}, "play": 100, "arcurl": "https://b23.tv/1",
-    }]}})
-    set_client(c)
+    monkeypatch.setattr(
+        "reach_mcp.sources.bilibili._fetch_via_api",
+        AsyncMock(return_value=[Row(
+            source="bilibili", id="BV1", title="Vid", url="https://b23.tv/1",
+            author="up", date=None, engagement={"play": 100}, text="",
+        )]),
+    )
     rows = await get_source("bilibili").fetch("ai", 30, 10)
     assert rows and rows[0].engagement["play"] == 100
 
