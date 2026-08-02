@@ -84,6 +84,30 @@
 3. 复制请求头里 `Authorization: Bearer ...` 的值(只要 token 部分)
 4. 设 `TRUTHSOCIAL_TOKEN=<bearer token>`
 
+### 9.5. YouTube(`YTDLP_COOKIES`)—— 数据中心 IP 被 bot-wall 时的解法
+
+reach 的 youtube 源用 yt-dlp 搜 + 抓字幕。**从服务器(数据中心 IP)直连通常会被 YouTube bot-wall**("Sign in to confirm you're not a bot")—— 这不是代码问题,是 YouTube 对数据中心 IP 的限制。两种解法:
+
+**方案 A(推荐):住宅 IP 出口**
+- 如果你有一个住宅 IP 的代理/中继,设 `YTDLP_PROXY`:
+  ```
+  YTDLP_PROXY=socks5://<住宅代理>:<port>    # 或 http://...
+  ```
+- 注:普通数据中心代理没用,必须是**住宅/非数据中心 IP** 出口。
+
+**方案 B:浏览器 cookies(如果方案 A 不可用)**
+1. 装浏览器插件导出 cookies.txt(Netscape 格式),例如:
+   - Chrome: *Get cookies.txt LOCALLY*
+   - Firefox: *cookies.txt*
+2. 登录 YouTube 一次(普通账号即可)
+3. 导出 cookies.txt → 放到容器能读到的地方(如 `/config/youtube_cookies.txt`)
+4. 设 `YTDLP_COOKIES=/config/youtube_cookies.txt`(指向文件路径)
+
+   > 或者直接给浏览器名,yt-dlp 会自动从浏览器读(需要容器里有该浏览器的 profile,一般不可行):
+   > `YTDLP_COOKIES=chrome`
+
+> ⚠️ 账号建议用**日常账号**,避免触发风控。cookies 会过期,失效后重新导出。
+
 ---
 
 ## 第 3 级 · 中文源
