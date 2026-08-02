@@ -30,9 +30,21 @@ async def _fetch_subtitles(query: str, limit: int) -> list[dict]:
         # is slower but is what makes transcripts actually populate.
         "extract_flat": False, "default_search": "ytsearch",
         "playlistend": limit,
+        # Default player_client gets bot-walled on datacenter IPs (search returns
+        # 0 results). The android client sometimes bypasses the search bot-wall.
+        "extractor_args": {"youtube": {"player_client": ["android"]}},
     }
     if proxy:
         opts["proxy"] = proxy
+    # Optional YouTube cookies (from browser) to bypass the bot-wall for search
+    # and subtitles. Path to a cookies.txt file (Netscape format) or a browser
+    # name like "chrome"/"firefox".
+    yt_cookies = os.environ.get("YTDLP_COOKIES")
+    if yt_cookies:
+        if os.path.exists(yt_cookies):
+            opts["cookiefile"] = yt_cookies
+        else:
+            opts["cookiesfrombrowser"] = (yt_cookies,)
     out = []
     try:
         with YoutubeDL(opts) as ydl:
