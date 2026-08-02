@@ -154,10 +154,12 @@ xiaohongshu-mcp:
 ```bash
 npx @modelcontextprotocol/inspector
 # connect 到 http://localhost:18060/mcp
-# 调 `login` 工具 → 出二维码 → 小红书 App 扫码
-# 调 `check_login` 确认(必要时再扫一次)
+# 调 `get_login_qrcode` 工具 → 出二维码 → 小红书 App 扫码(旧版叫 `login`,v2.0.0 改名)
+# 调 `check_login_status` 确认(旧版叫 `check_login`;必要时再扫一次)
 ```
 注意:先打开 App 再扫(二维码会过期);登录后别在网页端再登同账号(单点登录会踢出 MCP)。
+
+> ⚠️ **境外手机号注册的账号会分流到 rednote(国际版小红书)**,在国版小红书 App 里扫码会一直显示"未登录"或跳到 rednote。确认你用国版 app + 国版账号扫码。
 
 **cookies 存在 `./data` volume**——没挂 volume 则容器重建后登录态丢失,需重新扫码。无需 proxy(国内直连即可);如需要可设 `XHS_PROXY`。
 

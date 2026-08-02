@@ -101,9 +101,14 @@ async def _fetch_via_mcp(url: str, query: str, days: int, limit: int) -> list[Ro
 def _parse_feeds_json(text: str, limit: int) -> list[Row]:
     """Parse search_feeds' {feeds:[{...}]} JSON output into Row objects.
 
-    Feed fields (v2.0.0): noteId, title, xsecToken, xsecSource, authorName,
-    likeCount, collectCount, commentCount, url, cover, publishTime, ... The
-    xsecToken is required to open a note's detail page, so we surface the
+    xiaohongshu-mcp v2.0.0 feed shape (verified 2026-08):
+      {xsecToken, id, modelType, index,
+       noteCard: {type, displayTitle,
+                  user: {nickname},
+                  interactInfo: {likedCount, commentCount, collectedCount,
+                                 sharedCount},
+                  cover: {url}}}
+    The xsecToken is required to open a note's detail page, so we surface the
     canonical xiaohongshu URL built from noteId + xsecToken.
     """
     import json
@@ -124,7 +129,7 @@ def _parse_feeds_json(text: str, limit: int) -> list[Row]:
     for f in feeds:
         if not isinstance(f, dict):
             continue
-        note_id = str(f.get("noteId") or "")
+        note_id = str(f.get("id") or f.get("noteId") or "")
         token = f.get("xsecToken") or ""
         # Canonical URL requires the xsec_token (bare noteId isn't readable).
         if note_id:
@@ -133,24 +138,39 @@ def _parse_feeds_json(text: str, limit: int) -> list[Row]:
                 url += f"?xsec_token={token}&xsec_source=pc_search"
         else:
             url = f.get("url") or ""
-        title = f.get("title") or ""
+        # Nested noteCard (v2.0.0) with flat fallbacks.
+        nc = f.get("noteCard") or {}
+        title = nc.get("displayTitle") or f.get("title") or ""
+        user = nc.get("user") or {}
+        author = user.get("nickname") or f.get("authorName")
+        inter = nc.get("interactInfo") or {}
+        engagement = {
+            "likes": _int_or_zero(inter.get("likedCount") or f.get("likeCount")),
+            "collects": _int_or_zero(inter.get("collectedCount") or f.get("collectCount")),
+            "comments": _int_or_zero(inter.get("commentCount") or f.get("commentCount")),
+            "shares": _int_or_zero(inter.get("sharedCount") or f.get("sharedCount")),
+        }
         rows.append(Row(
             source="xiaohongshu",
             id=note_id or url or title,
             title=title[:200],
             url=url,
-            author=f.get("authorName"),
+            author=author,
             date=str(f.get("publishTime") or ""),
-            engagement={
-                "likes": f.get("likeCount") or 0,
-                "collects": f.get("collectCount") or 0,
-                "comments": f.get("commentCount") or 0,
-            },
+            engagement=engagement,
             text=(f.get("desc") or f.get("description") or "")[:500],
         ))
         if len(rows) >= limit:
             break
     return rows
+
+
+def _int_or_zero(v) -> int:
+    """Coerce a string/int count to int; 0 on empty/None."""
+    try:
+        return int(v or 0)
+    except (ValueError, TypeError):
+        return 0
 
 
 def _dedup_rows(rows: list[Row]) -> None:
