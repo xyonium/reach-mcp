@@ -125,16 +125,26 @@ def _episode_audio_url(e: dict) -> str:
     return url
 
 
+# Whisper API upload limit (OpenAI docs). Skip larger audio — transcription of
+# a full episode would exceed the API limit and/or stall the search.
+_MAX_AUDIO_BYTES = 25 * 1024 * 1024
+# Whisper first call loads the model on the GPU server (can take 30-90s);
+# subsequent calls are fast. Allow headroom for the load.
+_TRANSCRIBE_TIMEOUT = 180
+
+
 async def _transcribe_episode(audio_url: str) -> str:
     """Download + transcribe one episode's audio; "" on any failure."""
     settings = get_settings()
     audio = await download_audio(audio_url, settings)
     if not audio:
         return ""
-    # Bound per-episode transcription so a slow/huge file can't stall the
-    # whole search (pipeline already wraps fetch in a 90s timeout).
+    if len(audio) > _MAX_AUDIO_BYTES:
+        log.debug("xiaoyuzhou audio too large to transcribe: %d bytes", len(audio))
+        return ""
+    # Allow time for the first-call model load on the GPU server.
     try:
-        return await asyncio.wait_for(transcribe(audio, settings), timeout=60)
+        return await asyncio.wait_for(transcribe(audio, settings), timeout=_TRANSCRIBE_TIMEOUT)
     except asyncio.TimeoutError:
         log.debug("xiaoyuzhou transcription timed out: %s", audio_url)
         return ""
