@@ -59,13 +59,15 @@ async def test_xueqiu_merges_opencli_boost(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_bilibili_uses_search_api():
-    c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": {"result": [{
-        "bvid": "BV1", "title": "Vid", "pubdate": 1751328000,
-        "owner": {"name": "up"}, "play": 100, "arcurl": "https://b23.tv/1",
-    }]}})
-    set_client(c)
+async def test_bilibili_uses_search_api(monkeypatch):
+    monkeypatch.setattr("reach_mcp.sources.bilibili._has_cli", lambda: False)
+    monkeypatch.setattr(
+        "reach_mcp.sources.bilibili._fetch_via_api",
+        AsyncMock(return_value=[Row(
+            source="bilibili", id="BV1", title="Vid", url="https://b23.tv/1",
+            author="up", date=None, engagement={"play": 100}, text="",
+        )]),
+    )
     rows = await get_source("bilibili").fetch("ai", 30, 10)
     assert rows and rows[0].engagement["play"] == 100
 
