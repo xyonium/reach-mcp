@@ -14,6 +14,7 @@ import http.cookiejar
 import json
 import os
 import shutil
+import urllib.parse
 import urllib.request
 
 from reach_mcp.sources.base import Row, Source, register_source
@@ -62,9 +63,8 @@ async def _search_stock(query: str, limit: int) -> list[Row]:
     if not _cookie_str():
         return []
     try:
-        data = await asyncio.to_thread(
-            _get_json, f"{_API_BASE}/stock/search.json?code={query}&size={limit}"
-        )
+        url = f"{_API_BASE}/stock/search.json?code={urllib.parse.quote(query)}&size={limit}"
+        data = await asyncio.to_thread(_get_json, url)
     except Exception:  # noqa: BLE001
         return []
     rows: list[Row] = []
@@ -84,19 +84,20 @@ async def _search_stock(query: str, limit: int) -> list[Row]:
 async def _fetch_via_api(query: str, limit: int) -> list[Row]:
     """Fallback: public suggest API (works without login for some queries)."""
     try:
-        data = await asyncio.to_thread(
-            _get_json, f"{_API_BASE}/query/v1/suggest_stock.json?q={query}&count={limit}"
-        )
+        url = f"{_API_BASE}/query/v1/suggest_stock.json?q={urllib.parse.quote(query)}&count={limit}"
+        data = await asyncio.to_thread(_get_json, url)
     except Exception:  # noqa: BLE001
         return []
     rows: list[Row] = []
-    for s in ((data.get("data") or {}).get("result") or [])[:limit]:
+    # suggest returns {data: [ {code, name/query, ...} ]}
+    results = data.get("data") if isinstance(data, dict) else data
+    for s in (results if isinstance(results, list) else [])[:limit]:
         if not isinstance(s, dict):
             continue
-        code = s.get("symbol") or s.get("code") or s.get("id") or ""
+        code = s.get("code") or s.get("symbol") or s.get("id") or ""
         rows.append(Row(
             source="xueqiu", id=str(code),
-            title=s.get("name") or s.get("stockName") or code,
+            title=s.get("name") or s.get("query") or s.get("stockName") or code,
             url=f"https://xueqiu.com/S/{code}" if code else "",
             author=None, date=None,
             engagement={}, text=(s.get("description") or "")[:500],
