@@ -11,12 +11,13 @@ from reach_mcp.sources.base import set_client
 @pytest.mark.asyncio
 async def test_truthsocial_parses_results(monkeypatch):
     monkeypatch.setenv("TRUTHSOCIAL_TOKEN", "tok")
-    c = AsyncMock()
-    c.get_json = AsyncMock(return_value=[{
-        "id": "1", "content": "hello", "created_at": "2026-07-01T00:00:00Z",
-        "account": {"username": "u"}, "favourites_count": 4, "reblogs_count": 1,
-    }])
-    set_client(c)
+    monkeypatch.setattr(
+        "reach_mcp.sources.truthsocial._fetch_sync",
+        lambda q, limit: [{
+            "id": "1", "content": "<p>hello</p>", "created_at": "2026-07-01T00:00:00Z",
+            "account": {"username": "u"}, "favourites_count": 4, "reblogs_count": 1,
+        }],
+    )
     rows = await get_source("truthsocial").fetch("q", 30, 10)
     assert rows and rows[0].text == "hello" and rows[0].engagement["likes"] == 4
 
