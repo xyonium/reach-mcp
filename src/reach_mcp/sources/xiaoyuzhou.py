@@ -12,6 +12,8 @@ import asyncio
 import logging
 import os
 
+import httpx
+
 from reach_mcp.config import get_settings
 from reach_mcp.sources.base import Row, Source, get_client, register_source
 from reach_mcp.whisper import download_audio, transcribe
@@ -74,11 +76,41 @@ def _headers() -> dict:
     return h
 
 
+async def _refresh_access_token() -> bool:
+    """Refresh the access token via app_auth_tokens.refresh (needs refresh token).
+
+    On success, writes the new access token back to the environment so
+    subsequent calls in this process use it. Returns True on success.
+    """
+    refresh = _token("XIAOYUZHOU_REFRESH_TOKEN")
+    if not refresh:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=30) as hc:
+            r = await hc.post(
+                f"{_API}/app_auth_tokens.refresh",
+                headers={"x-jike-refresh-token": refresh},
+            )
+            if r.status_code != 200:
+                log.warning("xiaoyuzhou refresh failed: %s", r.status_code)
+                return False
+            new_access = r.headers.get("x-jike-access-token", "")
+            if not new_access:
+                return False
+            os.environ["XIAOYUZHOU_ACCESS_TOKEN"] = new_access
+            log.info("xiaoyuzhou access token refreshed")
+            return True
+    except Exception:  # noqa: BLE001
+        log.debug("xiaoyuzhou refresh error", exc_info=True)
+        return False
+
+
 async def _search_podcasts(client, query: str) -> list[dict]:
     """Search podcasts by keyword; returns list of podcast dicts (with pid).
 
     Note: do NOT send loadMoreKey:{} — the API returns "无效参数" (400) on an
-    empty loadMoreKey. Mirrors the reference xiaoyuzhou-api client.
+    empty loadMoreKey. Mirrors the reference xiaoyuzhou-api client. On 401
+    (expired access token), refresh and retry once.
     """
     try:
         data = await client.post_json(
@@ -86,6 +118,19 @@ async def _search_podcasts(client, query: str) -> list[dict]:
             json={"keyword": query, "type": "PODCAST"},
             headers=_headers(),
         )
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401 and await _refresh_access_token():
+            try:
+                data = await client.post_json(
+                    f"{_API}/v1/search/create",
+                    json={"keyword": query, "type": "PODCAST"},
+                    headers=_headers(),
+                )
+            except Exception:  # noqa: BLE001
+                return []
+        else:
+            log.debug("xiaoyuzhou search failed", exc_info=True)
+            return []
     except Exception:  # noqa: BLE001
         log.debug("xiaoyuzhou search failed", exc_info=True)
         return []
@@ -108,6 +153,19 @@ async def _episodes(client, pid: str, limit: int) -> list[dict]:
             json={"pid": pid, "order": "desc"},
             headers=_headers(),
         )
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401 and await _refresh_access_token():
+            try:
+                data = await client.post_json(
+                    f"{_API}/v1/episode/list",
+                    json={"pid": pid, "order": "desc"},
+                    headers=_headers(),
+                )
+            except Exception:  # noqa: BLE001
+                return []
+        else:
+            log.debug("xiaoyuzhou episode list failed", exc_info=True)
+            return []
     except Exception:  # noqa: BLE001
         log.debug("xiaoyuzhou episode list failed", exc_info=True)
         return []
