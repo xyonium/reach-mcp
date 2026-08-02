@@ -17,6 +17,8 @@ import json
 import os
 import re
 import time
+import urllib.error
+import urllib.request
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -45,9 +47,24 @@ def _is_financial_topic(topic: str) -> bool:
 
 
 def _get_json(url: str, timeout: int = 20) -> dict | list:
-    req = Request(url, headers={"User-Agent": _UA})
-    with urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    # StockTwits intermittently 403s on rapid requests (Cloudflare). Retry with
+    # backoff, and keep the default UA. Proxy state doesn't matter; the 403 is
+    # frequency-based, so pacing + retry is the fix.
+    last = None
+    for attempt in range(3):
+        try:
+            req = Request(url, headers={"User-Agent": _UA})
+            with urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            last = e
+            if e.code == 403:  # transient Cloudflare block; back off and retry
+                time.sleep(1.0 * (2 ** attempt) + 0.5)
+                continue
+            raise
+        except Exception:
+            raise
+    raise last if last else RuntimeError("stocktwits request failed")
 
 
 def _resolve_symbols(topic: str, max_symbols: int = 2) -> list[str]:
