@@ -37,10 +37,10 @@ async def test_digg_disabled_without_cli(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_xiaohongshu_parses_mcp_markdown(monkeypatch):
-    """When xiaohongshu-mcp returns markdown, we parse it into Rows."""
+    """When xiaohongshu-mcp returns JSON feeds, we parse them into Rows."""
     monkeypatch.setenv("XHS_MCP_URL", "http://localhost:18060/mcp")
 
-    async def fake_fetch(url, query, limit):
+    async def fake_fetch(url, query, days, limit):
         return []  # don't actually call MCP; just test the plain fetch
 
     monkeypatch.setattr(
@@ -53,16 +53,18 @@ async def test_xiaohongshu_parses_mcp_markdown(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_xiaohongshu_parse_markdown():
-    """Unit test the markdown parser."""
-    from reach_mcp.sources.xiaohongshu import _parse_xhs_markdown
+async def test_xiaohongshu_parse_json():
+    """Unit test the search_feeds JSON parser."""
+    from reach_mcp.sources.xiaohongshu import _parse_feeds_json
 
-    md = (
-        "**Best Hotpot in Chengdu** | ❤️ 345 | 💬 89 | "
-        "https://www.xiaohongshu.com/explore/abc123 | 收藏 200\n"
+    text = (
+        '{"feeds": [{"noteId": "abc123", "title": "Best Hotpot in Chengdu", '
+        '"xsecToken": "tok456", "likeCount": 345, "commentCount": 89, '
+        '"collectCount": 200}], "count": 1}'
     )
-    rows = _parse_xhs_markdown(md)
+    rows = _parse_feeds_json(text, 10)
     assert len(rows) >= 1
     assert rows[0].title == "Best Hotpot in Chengdu"
     assert rows[0].source == "xiaohongshu"
     assert "abc123" in rows[0].url
+    assert "xsec_token=tok456" in rows[0].url

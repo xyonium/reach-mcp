@@ -1,66 +1,160 @@
-"""YouTube transcripts via yt-dlp (free). Returns transcript text per video."""
+"""YouTube transcripts via yt-dlp (free). Returns transcript text per video.
+
+Backend mirrors last30days' youtube_yt.py: a **pure CLI subprocess** run of
+``yt-dlp --dump-json ytsearchN:<query>``. This is the key difference from the
+earlier implementation that used the Python API (``YoutubeDL`` with a
+``player_client: ["android"]`` extractor arg) — that path re-fetches each video
+for subtitles and trips YouTube's bot-wall ("Sign in to confirm you're not a
+bot") on datacenter IPs. The plain CLI search only reads the search-list page
+and does not bot-wall, so it works from a server without cookies.
+"""
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
+import shutil
 
 from reach_mcp.sources.base import Row, Source, register_source
 
 log = logging.getLogger(__name__)
 
+# yt-dlp subprocess command base. Mirrors last30days' youtube_yt.py exactly
+# (--dump-json, --no-warnings, --no-download, no cookies). No player_client —
+# the android extractor arg was the bot-wall trigger.
+_YTDLP_BASE = [
+    "yt-dlp",
+    "--ignore-config",
+    "--no-cookies-from-browser",
+    "--no-warnings",
+    "--no-download",
+    "--dump-json",
+]
 
-async def _fetch_subtitles(query: str, limit: int) -> list[dict]:
-    """Search YouTube and pull subtitles for each result. Returns raw dicts.
 
-    Uses a synchronous yt-dlp call (yt-dlp has no first-class async API) — the
-    surrounding `asyncio.wait_for(..., timeout=90)` in the pipeline bounds it.
-    """
-    try:
-        from yt_dlp import YoutubeDL
-    except ImportError:
+async def _search_videos(query: str, limit: int) -> list[dict]:
+    """Search YouTube via the yt-dlp CLI (search-list page only)."""
+    if shutil.which("yt-dlp") is None:
         log.warning("yt-dlp not installed; youtube source disabled")
         return []
+    cmd = [*_YTDLP_BASE, f"ytsearch{limit}:{query}"]
+    # Optional proxy for yt-dlp (SOCKS/http, e.g. via a residential relay).
     proxy = os.environ.get("YTDLP_PROXY")
-    opts = {
-        "quiet": True, "skip_download": True, "writesubtitles": True,
-        "writeautomaticsub": True, "subtitleslangs": ["en", "zh"],
-        # NOTE: extract_flat is intentionally False. With extract_flat=True yt-dlp
-        # returns shallow entries that carry no subtitles/automatic_captions, so
-        # the transcript text would always be empty. Fetching full info per video
-        # is slower but is what makes transcripts actually populate.
-        "extract_flat": False, "default_search": "ytsearch",
-        "playlistend": limit,
-        # Default player_client gets bot-walled on datacenter IPs (search returns
-        # 0 results). The android client sometimes bypasses the search bot-wall.
-        "extractor_args": {"youtube": {"player_client": ["android"]}},
-    }
     if proxy:
-        opts["proxy"] = proxy
-    # Optional YouTube cookies (from browser) to bypass the bot-wall for search
-    # and subtitles. Path to a cookies.txt file (Netscape format) or a browser
-    # name like "chrome"/"firefox".
-    yt_cookies = os.environ.get("YTDLP_COOKIES")
-    if yt_cookies:
-        if os.path.exists(yt_cookies):
-            opts["cookiefile"] = yt_cookies
-        else:
-            opts["cookiesfrombrowser"] = (yt_cookies,)
-    out = []
+        cmd = ["--proxy", proxy, *cmd]
     try:
-        with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
-            for e in (info.get("entries") or []):
-                out.append({
-                    "id": e.get("id", ""), "title": e.get("title", ""),
-                    "url": e.get("webpage_url") or f"https://youtu.be/{e.get('id')}",
-                    "text": _first_subtitle_text(e),
-                    "date": e.get("upload_date"),
-                    "engagement": {"views": e.get("view_count") or 0,
-                                   "likes": e.get("like_count") or 0},
-                })
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
     except Exception:  # noqa: BLE001
-        log.warning("yt-dlp search failed", exc_info=True)
-    return out
+        log.debug("yt-dlp search subprocess failed", exc_info=True)
+        return []
+    out: list[dict] = []
+    for line in stdout.decode("utf-8", "replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            v = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        out.append({
+            "id": v.get("id", ""),
+            "title": v.get("title", ""),
+            "url": f"https://www.youtube.com/watch?v={v.get('id', '')}",
+            "text": _first_subtitle_text(v),  # shallow; "" unless the search payload carried subs
+            "date": v.get("upload_date"),
+            "engagement": {
+                "views": v.get("view_count") or 0,
+                "likes": v.get("like_count") or 0,
+                "comments": v.get("comment_count") or 0,
+            },
+        })
+    # Bounded transcript backfill for the top results (mirrors last30days'
+    # TRANSCRIPT_LIMITS approach): the search-list payload carries no subs, so
+    # fetch captions per-video via `--write-auto-subs`. Cap the count so a slow
+    # video never dominates the run. Per-video fetch is a subprocess with its
+    # own timeout; failures leave text empty (no hard fail).
+    backfill = max(1, min(limit, 2))
+    for v in out[:backfill]:
+        if v["text"]:
+            continue
+        v["text"] = await _fetch_transcript(v["id"])
+    return out[:limit]
+
+
+async def _fetch_transcript(video_id: str) -> str:
+    """Fetch a video's auto-captions via the yt-dlp CLI (VTT -> plaintext).
+
+    Mirrors last30days' _fetch_transcript_ytdlp: `yt-dlp --write-auto-subs
+    --sub-lang en.* --sub-format vtt --skip-download`. The caption tracks live
+    on the video page; this subprocess route does not trip the search bot-wall.
+    Returns "" on any failure (video without captions, timeout, bot-gate).
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="reach-yt-") as tmp:
+        cmd = [
+            "yt-dlp", "--ignore-config", "--no-cookies-from-browser",
+            "--write-auto-subs", "--sub-lang", "en.*", "--sub-format", "vtt",
+            "--skip-download", "--no-warnings", "-o", f"{tmp}/%(id)s",
+            f"https://www.youtube.com/watch?v={video_id}",
+        ]
+        proxy = os.environ.get("YTDLP_PROXY")
+        if proxy:
+            cmd = ["--proxy", proxy, *cmd]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=45)
+        except Exception:  # noqa: BLE001
+            log.debug("yt-dlp transcript failed for %s", video_id, exc_info=True)
+            return ""
+        # The VTT may be written as <id>.en.vtt or <id>.en-orig.vtt
+        vtt = _read_vtt(tmp, video_id)
+        if not vtt:
+            return ""
+        return _clean_vtt(vtt)[:1000]
+
+
+def _read_vtt(tmp_dir: str, video_id: str) -> str:
+    """Return the concatenated plaintext of any VTT files for video_id in tmp_dir."""
+    import glob
+
+    files = sorted(glob.glob(f"{tmp_dir}/{video_id}*.vtt"))
+    if not files:
+        return ""
+    parts = []
+    for f in files:
+        with open(f, encoding="utf-8", errors="replace") as fh:
+            parts.append(fh.read())
+    return "\n".join(parts)
+
+
+def _clean_vtt(vtt_text: str) -> str:
+    """Strip VTT headers/timestamps/cue tags, return plaintext transcript."""
+    import re
+
+    # Drop the WEBVTT header and cue metadata lines; keep the actual words.
+    lines = []
+    for raw in vtt_text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("WEBVTT") or line.startswith("Kind:") \
+                or line.startswith("Language:") or line.startswith("NOTE"):
+            continue
+        if "-->" in line:  # timestamp cue line
+            continue
+        # Inline cue tags: <00:00:00.320><c> President</c> -> "President"
+        line = re.sub(r"<[^>]+>", "", line)
+        line = line.replace("&nbsp;", " ").replace("&#39;", "'").strip()
+        if line:
+            lines.append(line)
+    return " ".join(lines).strip()
 
 
 def _first_subtitle_text(entry: dict) -> str:
@@ -88,12 +182,12 @@ def _first_subtitle_text(entry: dict) -> str:
 @register_source
 class YouTube(Source):
     name = "youtube"
-    description = "YouTube video transcripts via yt-dlp (free)."
+    description = "YouTube video transcripts via yt-dlp CLI (free, no cookies)."
     host = "www.youtube.com"
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         rows: list[Row] = []
-        for v in await _fetch_subtitles(query, limit):
+        for v in await _search_videos(query, limit):
             rows.append(Row(
                 source="youtube", id=v["id"], title=v["title"], url=v["url"],
                 author=None, date=v.get("date"), engagement=v.get("engagement", {}),

@@ -74,9 +74,9 @@ async def test_bilibili_uses_search_api(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_youtube_shells_to_ytdlp(monkeypatch):
-    async def fake_subtitles(query, limit):
+    async def fake_search(query, limit):
         return [{"id": "yt1", "title": query, "url": "https://youtu.be/1",
                  "text": "transcript", "date": None, "engagement": {}}]
-    monkeypatch.setattr("reach_mcp.sources.youtube._fetch_subtitles", fake_subtitles)
+    monkeypatch.setattr("reach_mcp.sources.youtube._search_videos", fake_search)
     rows = await get_source("youtube").fetch("rust", 30, 5)
     assert rows and rows[0].text == "transcript"
