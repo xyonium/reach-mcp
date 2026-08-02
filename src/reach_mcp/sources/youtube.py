@@ -48,9 +48,23 @@ async def _search_videos(query: str, limit: int) -> list[dict]:
             *cmd,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90)
     except Exception:  # noqa: BLE001
         log.debug("yt-dlp search subprocess failed", exc_info=True)
+        return []
+    if not stdout.strip():
+        err = stderr.decode("utf-8", "replace")[:200]
+        # Surface the common bot-wall / auth failures so the reason for 0
+        # results is diagnosable (e.g. container datacenter IP needs a
+        # residential proxy or cookies).
+        if "Sign in to confirm" in err or "bot" in err.lower():
+            log.warning(
+                "yt-dlp youtube search bot-walled (0 results): %s. "
+                "The container's datacenter IP is blocked; use a residential "
+                "proxy (YTDLP_PROXY) or cookies (YTDLP_COOKIES).", err.splitlines()[-1][:80]
+            )
+        elif err:
+            log.warning("yt-dlp youtube search returned nothing: %s", err.splitlines()[-1][:80])
         return []
     out: list[dict] = []
     for line in stdout.decode("utf-8", "replace").splitlines():
