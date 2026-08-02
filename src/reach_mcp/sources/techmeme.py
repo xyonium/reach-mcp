@@ -19,20 +19,18 @@ def _has_cli() -> bool:
 
 
 async def _fetch_via_cli(query: str, days: int, limit: int) -> list[Row]:
-    """`techmeme-pp-cli since <Nd> --json --agent`.
+    """`techmeme-pp-cli search <q> --days <N> --json`.
 
-    The CLI has no "search" subcommand; `since` lists recent headlines from its
-    local SQLite cache (hydrated by `techmeme-pp-cli sync`). We sync first (cheap,
-    idempotent) then filter the window by the query client-side.
+    The CLI's `search` command hits Techmeme's live archive search (back to
+    ~2005) with a --days window. Do NOT pass --agent: it implies --compact,
+    which on some binary versions strips headline records to {} (see last30days'
+    note + printing-press-library PR #1383). --json without --compact keeps the
+    populated record shape.
     """
     try:
-        sync_proc = await asyncio.create_subprocess_exec(
-            "techmeme-pp-cli", "sync", "--json",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
-        await asyncio.wait_for(sync_proc.communicate(), timeout=60)
         proc = await asyncio.create_subprocess_exec(
-            "techmeme-pp-cli", "since", f"{days}d", "--json", "--agent",
+            "techmeme-pp-cli", "search", query,
+            "--days", str(days), "--json",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
@@ -43,22 +41,17 @@ async def _fetch_via_cli(query: str, days: int, limit: int) -> list[Row]:
     except json.JSONDecodeError:
         return []
     items = data if isinstance(data, list) else (data.get("items") or data.get("results") or [])
-    ql = query.lower()
     rows: list[Row] = []
-    for i, item in enumerate(items):
+    for i, item in enumerate(items[:limit]):
         url = item.get("link") or item.get("url") or ""
         title = item.get("headline") or item.get("title") or f"Techmeme {i+1}"
-        if ql and ql not in title.lower():
-            continue  # CLI has no search; filter the since-window by query
         rows.append(Row(
             source="techmeme", id=url or str(i),
             title=title, url=url,
             author=item.get("source") or item.get("author"),
-            date=item.get("time") or item.get("date") or item.get("publishedAt"),
+            date=item.get("date") or item.get("time") or item.get("publishedAt"),
             engagement={}, text=(item.get("summary") or item.get("description") or "")[:500],
         ))
-        if len(rows) >= limit:
-            break
     return rows
 
 
