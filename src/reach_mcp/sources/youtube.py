@@ -66,7 +66,12 @@ async def _search_videos(query: str, limit: int) -> list[dict]:
     if shutil.which("yt-dlp") is None:
         log.warning("yt-dlp not installed; youtube source disabled")
         return []
-    cmd = [*_ytdlp_common_args(list(_YTDLP_BASE)), f"ytsearch{limit}:{query}"]
+    base = list(_YTDLP_BASE)
+    extra = _ytdlp_common_args(base)
+    # argv[0] MUST be `yt-dlp` (subprocess exec's the first token). The
+    # proxy/cookies args go after it, not before — prepending them made
+    # argv[0]='--cookies' and FileNotFoundError'd.
+    cmd = [base[0], *extra, *base[1:], f"ytsearch{limit}:{query}"]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -141,7 +146,10 @@ async def _fetch_transcript(video_id: str) -> str:
             "--skip-download", "--no-warnings", "-o", f"{tmp}/%(id)s",
             f"https://www.youtube.com/watch?v={video_id}",
         ]
-        cmd = [*_ytdlp_common_args(cmd), *cmd]
+        prog = cmd[0]
+        extra = _ytdlp_common_args(cmd)  # may drop --no-cookies-from-browser
+        # argv[0] MUST be `yt-dlp`; extra (cookies/proxy) goes after it.
+        cmd = [prog, *extra, *cmd[1:]]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
