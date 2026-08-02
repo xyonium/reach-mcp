@@ -96,8 +96,25 @@ reach 的 youtube 源用 yt-dlp 搜 + 抓字幕。**从服务器(数据中心 IP
 - 注:普通数据中心代理没用,必须是**住宅/非数据中心 IP** 出口。
 
 **方案 B:浏览器 cookies(如果方案 A 不可用)**
-1. 装浏览器插件导出 cookies.txt(Netscape 格式),例如:
-   - Chrome: *Get cookies.txt LOCALLY*
+
+格式说明:**`--cookies` 只认 Netscape cookies.txt 文件**,不是 JSON、也不是 `name=value; name2=value` 的 header 字符串。yt-dlp 只支持这两种输入:
+
+| `YTDLP_COOKIES` 值 | 用途 | 要求 |
+|---|---|---|
+| **文件路径** | `--cookies <path>` | 必须是 **Netscape 格式** 的 cookies.txt 纯文本文件 |
+| **浏览器名**(chrome/firefox) | `--cookies-from-browser` | 需要容器里装有该浏览器的 profile(容器里一般没有,不太可行) |
+
+Netscape cookies.txt 长这样(每行一个 cookie,tab 分隔,HttpOnly 的带 `#HttpOnly_` 前缀):
+```
+# Netscape HTTP Cookie File
+#HttpOnly_.youtube.com	TRUE	/	TRUE	19241231235959	SID	xxxx...
+.youtube.com	TRUE	/	TRUE	19241231235959	LOGIN_INFO	xxxx...
+#HttpOnly_.youtube.com	TRUE	/	TRUE	19241231235959	SSID	xxxx...
+```
+
+步骤:
+1. 装浏览器插件导出 cookies.txt —— 选导出格式为 **tab-separated / Netscape**,不是 JSON:
+   - Chrome: *Get cookies.txt LOCALLY*、*Cookie-Editor*(导出格式选 "Header string" 不行,要选 "Netscape / cURL" 那种文件)
    - Firefox: *cookies.txt*
 2. 登录 YouTube 一次(普通账号即可)
 3. 导出 cookies.txt → 放到容器能读到的地方(如 `/config/youtube_cookies.txt`)
