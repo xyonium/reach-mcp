@@ -44,7 +44,7 @@ async def _fetch_via_mcp(url: str, query: str, days: int, limit: int) -> list[Ro
         filters["publish_time"] = "半年内"
 
     try:
-        async with httpx.AsyncClient(timeout=30) as hclient:
+        async with httpx.AsyncClient(timeout=45) as hclient:
             # Step 1: initialize MCP session
             init_r = await hclient.post(
                 endpoint,
@@ -57,25 +57,36 @@ async def _fetch_via_mcp(url: str, query: str, days: int, limit: int) -> list[Ro
             )
             sid = init_r.headers.get("mcp-session-id", "")
 
-            # Step 2: call search_feeds tool
+            # Step 2: call search_feeds tool. The companion intermittently
+            # returns "context deadline exceeded" on first call (cold), so retry
+            # once before giving up.
             call_headers = {"Content-Type": "application/json",
                           "Accept": "application/json, text/event-stream"}
             if sid:
                 call_headers["mcp-session-id"] = sid
 
-            call_r = await hclient.post(
-                endpoint,
-                json={"jsonrpc": "2.0", "method": "tools/call",
-                      "params": {"name": _SEARCH_TOOL,
-                                "arguments": {"keyword": query, "filters": filters}},
-                      "id": 2},
-                headers=call_headers,
-            )
-            if call_r.status_code != 200:
-                log.warning("xiaohongshu-mcp returned %s: %s", call_r.status_code, call_r.text[:200])
-                return []
-
-            result = call_r.json()
+            payload = {"jsonrpc": "2.0", "method": "tools/call",
+                       "params": {"name": _SEARCH_TOOL,
+                                 "arguments": {"keyword": query, "filters": filters}},
+                       "id": 2}
+            result = None
+            for attempt in range(2):
+                call_r = await hclient.post(
+                    endpoint, json=payload, headers=call_headers,
+                )
+                if call_r.status_code != 200:
+                    log.warning("xiaohongshu-mcp returned %s: %s",
+                                call_r.status_code, call_r.text[:200])
+                    return []
+                result = call_r.json()
+                err = (result.get("result") or {}).get("isError")
+                if not err:
+                    break
+                log.warning("xiaohongshu search_feeds error (attempt %d), retrying",
+                            attempt + 1)
+                if attempt == 0:
+                    import asyncio as _a
+                    await _a.sleep(2)
     except Exception:
         log.debug("xiaohongshu-mcp call failed", exc_info=True)
         return []
