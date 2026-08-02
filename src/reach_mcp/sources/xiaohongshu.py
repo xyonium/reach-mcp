@@ -6,10 +6,15 @@ handles auth, cookie refresh, and request signing internally.
 
 Requirements:
   - xiaohongshu-mcp running at XHS_MCP_URL (default http://localhost:18060/mcp)
-  - xiaohongshu-mcp logged in (run the login helper once)
-  - Docker: add xiaohongshu-mcp as a companion service in compose (see docker-compose.yml)
+  - xiaohongshu-mcp logged in (call its get_login_qrcode tool once — search
+    returns {feeds: [], count: 0} while logged out)
 
-Without the companion service the source degrades gracefully (returns []).
+Verified 2026-08 against xiaohongshu-mcp v2.0.0: the search tool is
+``search_feeds`` (NOT the legacy ``search_notes`` — that name errors with
+method-not-found). It takes ``keyword`` + optional ``filters`` (sort_by,
+note_type, publish_time, search_scope, location); there is NO ``limit`` param
+(the tool returns one page). Results come back as a JSON text blob:
+{feeds: [{noteId, title, xsecToken, ...}], count: N}.
 """
 from __future__ import annotations
 
@@ -20,15 +25,24 @@ from reach_mcp.sources.base import Row, Source, register_source
 
 log = logging.getLogger(__name__)
 
-# xiaohongshu-mcp tool name
-_SEARCH_TOOL = "search_notes"
+# xiaohongshu-mcp search tool name (v2.0.0). Legacy `search_notes` is gone.
+_SEARCH_TOOL = "search_feeds"
 
 
-async def _fetch_via_mcp(url: str, query: str, limit: int) -> list[Row]:
+async def _fetch_via_mcp(url: str, query: str, days: int, limit: int) -> list[Row]:
     """Fetch search results from xiaohongshu-mcp via JSON-RPC over HTTP."""
     import httpx
 
     endpoint = url.rstrip("/") + "/message"
+    # Map recency window to the tool's publish_time filter, if meaningful.
+    filters = {}
+    if days <= 1:
+        filters["publish_time"] = "一天内"
+    elif days <= 7:
+        filters["publish_time"] = "一周内"
+    elif days <= 180:
+        filters["publish_time"] = "半年内"
+
     try:
         async with httpx.AsyncClient(timeout=30) as hclient:
             # Step 1: initialize MCP session
@@ -43,7 +57,7 @@ async def _fetch_via_mcp(url: str, query: str, limit: int) -> list[Row]:
             )
             sid = init_r.headers.get("mcp-session-id", "")
 
-            # Step 2: call search_notes tool
+            # Step 2: call search_feeds tool
             call_headers = {"Content-Type": "application/json",
                           "Accept": "application/json, text/event-stream"}
             if sid:
@@ -53,7 +67,7 @@ async def _fetch_via_mcp(url: str, query: str, limit: int) -> list[Row]:
                 endpoint,
                 json={"jsonrpc": "2.0", "method": "tools/call",
                       "params": {"name": _SEARCH_TOOL,
-                                "arguments": {"keyword": query, "limit": min(limit, 20)}},
+                                "arguments": {"keyword": query, "filters": filters}},
                       "id": 2},
                 headers=call_headers,
             )
@@ -66,82 +80,82 @@ async def _fetch_via_mcp(url: str, query: str, limit: int) -> list[Row]:
         log.debug("xiaohongshu-mcp call failed", exc_info=True)
         return []
 
-    # Parse MCP tool result
+    # Parse MCP tool result — search_feeds returns a JSON text block.
     try:
         content = result.get("result", {}).get("content", [])
     except (AttributeError, KeyError):
         return []
 
-    rows: list[Row] = []
+    text = ""
     for block in content:
-        if not isinstance(block, dict):
-            continue
-        text = block.get("text", "")
-        if not text:
-            continue
-        # xiaohongshu-mcp returns markdown; extract note entries
-        for note in _parse_xhs_markdown(text):
-            rows.append(note)
+        if isinstance(block, dict) and block.get("type") == "text":
+            text += block.get("text", "")
+    if not text:
+        return []
 
+    rows = _parse_feeds_json(text, limit)
     _dedup_rows(rows)
     return rows[:limit]
 
 
-def _parse_xhs_markdown(text: str) -> list[Row]:
-    """Parse xiaohongshu-mcp's markdown output into Row objects."""
-    import re
+def _parse_feeds_json(text: str, limit: int) -> list[Row]:
+    """Parse search_feeds' {feeds:[{...}]} JSON output into Row objects.
+
+    Feed fields (v2.0.0): noteId, title, xsecToken, xsecSource, authorName,
+    likeCount, collectCount, commentCount, url, cover, publishTime, ... The
+    xsecToken is required to open a note's detail page, so we surface the
+    canonical xiaohongshu URL built from noteId + xsecToken.
+    """
+    import json
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        # Non-JSON (e.g. an error message like "❌ 未登录") — nothing to parse.
+        if text.strip().startswith("❌"):
+            log.warning("xiaohongshu-mcp not logged in: %s", text.strip()[:60])
+        return []
+
+    feeds = data.get("feeds") or []
+    if data.get("count") == 0 or not feeds:
+        return []
 
     rows: list[Row] = []
-    # xiaohongshu-mcp returns structured markdown like:
-    # **Title** | ❤️ 120 | 💬 34 | 🔗 https://...
-    # or JSON-style blocks
-    lines = text.split("\n")
-    current_title = ""
-    current_url = ""
-    current_likes = 0
-
-    for line in lines:
-        line = line.strip()
-        if not line:
+    for f in feeds:
+        if not isinstance(f, dict):
             continue
-        # Try to extract URL + title patterns
-        url_m = re.search(r"https?://(?:www\.)?xiaohongshu\.com/\S+", line)
-        if url_m:
-            current_url = url_m.group(0).rstrip(")[].,;")
-        # Title: bold text or first substantial text
-        title_m = re.search(r"\*\*(.+?)\*\*", line)
-        if title_m:
-            current_title = title_m.group(1).strip()
-        elif current_title and not current_url and len(line) > 10 and not line.startswith("http"):
-            # Might be a title on its own line after URL
-            pass
-        # Engagement: ❤️ 120  💬 34  ⭐ 56
-        like_m = re.search(r"[❤👍]\S*\s*(\d[\d,]*)", line)
-        if like_m:
-            try:
-                current_likes = int(like_m.group(1).replace(",", ""))
-            except ValueError:
-                pass
-
-        if current_url and current_title:
-            rows.append(Row(
-                source="xiaohongshu", id=current_url,
-                title=current_title[:200], url=current_url,
-                author=None, date=None,
-                engagement={"likes": current_likes},
-                text=line[:500],
-            ))
-            current_title = ""
-            current_url = ""
-            current_likes = 0
-
+        note_id = str(f.get("noteId") or "")
+        token = f.get("xsecToken") or ""
+        # Canonical URL requires the xsec_token (bare noteId isn't readable).
+        if note_id:
+            url = f"https://www.xiaohongshu.com/explore/{note_id}"
+            if token:
+                url += f"?xsec_token={token}&xsec_source=pc_search"
+        else:
+            url = f.get("url") or ""
+        title = f.get("title") or ""
+        rows.append(Row(
+            source="xiaohongshu",
+            id=note_id or url or title,
+            title=title[:200],
+            url=url,
+            author=f.get("authorName"),
+            date=str(f.get("publishTime") or ""),
+            engagement={
+                "likes": f.get("likeCount") or 0,
+                "collects": f.get("collectCount") or 0,
+                "comments": f.get("commentCount") or 0,
+            },
+            text=(f.get("desc") or f.get("description") or "")[:500],
+        ))
+        if len(rows) >= limit:
+            break
     return rows
 
 
 def _dedup_rows(rows: list[Row]) -> None:
     """Remove duplicate rows by URL in-place."""
     seen = set()
-    # Iterate backwards so we can pop
     i = len(rows) - 1
     while i >= 0:
         key = rows[i].url
@@ -157,7 +171,8 @@ class Xiaohongshu(Source):
     name = "xiaohongshu"
     description = (
         "小红书 search via xiaohongshu-mcp companion (most stable server-side approach; "
-        "set XHS_MCP_URL to enable, default http://localhost:18060/mcp)."
+        "set XHS_MCP_URL to enable, default http://localhost:18060/mcp). Requires the "
+        "companion to be logged in (get_login_qrcode)."
     )
     host = "www.xiaohongshu.com"
     needs_auth = True
@@ -169,4 +184,4 @@ class Xiaohongshu(Source):
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         xhs_mcp_url = os.environ.get("XHS_MCP_URL", "http://localhost:18060/mcp").strip()
-        return await _fetch_via_mcp(xhs_mcp_url, query, limit)
+        return await _fetch_via_mcp(xhs_mcp_url, query, days, limit)

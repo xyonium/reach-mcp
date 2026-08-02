@@ -62,18 +62,6 @@ async def _jina_search(query: str, limit: int) -> list[Row]:
         if len(rows) >= limit:
             break
     return rows
-    rows: list[Row] = []
-    results = data.get("data") or []
-    for r in results[:limit]:
-        url = r.get("url") or ""
-        title = (r.get("title") or "")[:200]
-        content = r.get("content") or ""
-        rows.append(Row(
-            source="linkedin", id=url or title, title=title, url=url,
-            author=None, date=r.get("publishedTime"),
-            engagement={}, text=content[:500],
-        ))
-    return rows
 
 
 def _parse_jina_reader_markdown(md: str) -> list[Row]:
