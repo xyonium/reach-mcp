@@ -49,10 +49,23 @@ async def test_polymarket_parses_markets():
 
 
 @pytest.mark.asyncio
-async def test_stocktwits_parses_messages():
-    set_client(_client_returns({"messages": [{
-        "id": 1, "body": "bullish", "created_at": "2026-07-01T00:00:00Z",
-        "user": {"username": "u"},
-    }]}))
+async def test_stocktwits_parses_messages(monkeypatch):
+    monkeypatch.setattr(
+        "reach_mcp.sources.stocktwits._resolve_symbols",
+        lambda q: ["AAPL"],
+    )
+    monkeypatch.setattr(
+        "reach_mcp.sources.stocktwits._fetch_stream",
+        lambda sym, limit: [{
+            "id": 1, "body": "bullish", "created_at": "2026-07-01T00:00:00Z",
+            "user": {"username": "u"},
+        }],
+    )
     rows = await get_source("stocktwits").fetch("AAPL", 30, 10)
     assert rows and rows[0].text == "bullish"
+
+
+async def test_stocktwits_empty_for_non_financial(monkeypatch):
+    monkeypatch.setattr("reach_mcp.sources.stocktwits._resolve_symbols", lambda q: [])
+    rows = await get_source("stocktwits").fetch("OpenAI", 30, 10)
+    assert rows == []
