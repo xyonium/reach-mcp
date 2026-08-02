@@ -1,12 +1,14 @@
-"""YouTube transcripts via yt-dlp (free). Returns transcript text per video.
+"""YouTube search + transcripts via yt-dlp CLI (free).
 
-Backend mirrors last30days' youtube_yt.py: a **pure CLI subprocess** run of
-``yt-dlp --dump-json ytsearchN:<query>``. This is the key difference from the
-earlier implementation that used the Python API (``YoutubeDL`` with a
-``player_client: ["android"]`` extractor arg) — that path re-fetches each video
-for subtitles and trips YouTube's bot-wall ("Sign in to confirm you're not a
-bot") on datacenter IPs. The plain CLI search only reads the search-list page
-and does not bot-wall, so it works from a server without cookies.
+Backend: a **pure CLI subprocess** run of ``yt-dlp --flat-playlist --dump-json
+ytsearchN:<query>``. Verified 2026-08 against the mcpo container's datacenter
+IP: the search-list page passes even with a captcha challenge active, whereas
+**full (deep) extraction per-video triggers the captcha/bot-wall and returns 0**
+("Video unavailable. YouTube is requiring a captcha challenge"). So search uses
+``--flat-playlist`` (shallow; id/title/views/date, no subtitles), and captions
+are fetched per-video separately (best-effort — they may also be captcha'd on a
+datacenter IP). Cookies (YTDLP_COOKIES) and a residential proxy (YTDLP_PROXY)
+both help; cookies are the practical fix from the container.
 """
 from __future__ import annotations
 
@@ -20,15 +22,15 @@ from reach_mcp.sources.base import Row, Source, register_source
 
 log = logging.getLogger(__name__)
 
-# yt-dlp subprocess command base. Mirrors last30days' youtube_yt.py exactly
-# (--dump-json, --no-warnings, --no-download, no cookies). No player_client —
-# the android extractor arg was the bot-wall trigger.
+# --flat-playlist = shallow search-list extraction (id/title/views/date).
+# Deep per-video extraction (without it) trips the captcha on datacenter IPs.
 _YTDLP_BASE = [
     "yt-dlp",
     "--ignore-config",
     "--no-cookies-from-browser",
     "--no-warnings",
     "--no-download",
+    "--flat-playlist",
     "--dump-json",
 ]
 
