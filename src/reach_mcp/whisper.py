@@ -43,7 +43,9 @@ async def transcribe(audio: bytes, settings: Settings) -> str:
     base = settings.whisper_base_url.rstrip("/")
     if not base or not audio:
         return ""
-    headers = {"Authorization": f"Bearer {settings.whisper_api_key}"}
+    headers = {}
+    if settings.whisper_api_key:
+        headers["Authorization"] = f"Bearer {settings.whisper_api_key}"
     files = {
         "file": ("audio.mp3", audio, "audio/mpeg"),
         "model": (None, settings.whisper_model or "whisper-large"),
