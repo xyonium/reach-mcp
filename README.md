@@ -344,9 +344,13 @@ Then set `XHS_MCP_URL=http://xiaohongshu-mcp:18060/mcp` and log in (below).
 ```bash
 npx @modelcontextprotocol/inspector      # MCP Inspector
 # connect to http://localhost:18060/mcp
-# call the `login` tool → QR code appears → scan with the 小红书 App
-# call `check_login` to confirm (re-scan once more if prompted)
+# call `get_login_qrcode` → QR code appears → scan with the 小红书 App
+#    (older images called it `login`; v2.0.0 renamed it)
+# call `check_login_status` to confirm (older images: `check_login`)
 ```
+> ⚠️ **Accounts registered with a non-mainland (境外) phone get routed to rednote**
+> (the international Xiaohongshu), and scanning with the mainland app keeps showing
+> "not logged in". Use the mainland 小红书 app + a mainland-registered account.
 Notes: open the App *before* scanning (the QR expires quickly); don't log the same account in elsewhere on the web — 小红书 single-logs-in, a web login kicks the MCP account out. Cookies persist in the `./data` volume.
 
 **Without Docker:** Download the binary from [releases](https://github.com/xpzouying/xiaohongshu-mcp/releases). Login is the same QR flow via the MCP `login` tool (or `go run cmd/login/main.go` from source), then start the server and set `XHS_MCP_URL=http://localhost:18060/mcp`.

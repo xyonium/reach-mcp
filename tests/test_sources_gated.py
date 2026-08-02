@@ -54,17 +54,35 @@ async def test_xiaohongshu_parses_mcp_markdown(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_xiaohongshu_parse_json():
-    """Unit test the search_feeds JSON parser."""
+    """Unit test the search_feeds JSON parser (v2.0.0 nested noteCard shape)."""
     from reach_mcp.sources.xiaohongshu import _parse_feeds_json
 
     text = (
-        '{"feeds": [{"noteId": "abc123", "title": "Best Hotpot in Chengdu", '
-        '"xsecToken": "tok456", "likeCount": 345, "commentCount": 89, '
-        '"collectCount": 200}], "count": 1}'
+        '{"feeds": [{"id": "abc123", "xsecToken": "tok456", "noteCard": {'
+        '"displayTitle": "Best Hotpot in Chengdu", '
+        '"user": {"nickname": "chef"}, '
+        '"interactInfo": {"likedCount": "345", "commentCount": "89", '
+        '"collectedCount": "200", "sharedCount": "12"}}}], "count": 1}'
     )
     rows = _parse_feeds_json(text, 10)
     assert len(rows) >= 1
     assert rows[0].title == "Best Hotpot in Chengdu"
     assert rows[0].source == "xiaohongshu"
+    assert rows[0].author == "chef"
     assert "abc123" in rows[0].url
     assert "xsec_token=tok456" in rows[0].url
+    assert rows[0].engagement["likes"] == 345
+
+
+@pytest.mark.asyncio
+async def test_xiaohongshu_parse_json_flat_fallback():
+    """Flat (legacy) fields still parse when noteCard is absent."""
+    from reach_mcp.sources.xiaohongshu import _parse_feeds_json
+
+    text = (
+        '{"feeds": [{"noteId": "x1", "title": "Flat title", '
+        '"xsecToken": "t1", "likeCount": 5}], "count": 1}'
+    )
+    rows = _parse_feeds_json(text, 10)
+    assert rows and rows[0].title == "Flat title"
+    assert rows[0].engagement["likes"] == 5
