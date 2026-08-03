@@ -21,7 +21,7 @@ import os
 import re
 
 from reach_mcp.sources._scrapecreators import scrape_search
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 
 async def _jina_search(query: str, limit: int) -> list[Row]:
@@ -57,7 +57,7 @@ async def _jina_search(query: str, limit: int) -> list[Row]:
         rows.append(Row(
             source="linkedin", id=url or title, title=title, url=url,
             author=None, date=r.get("publishedTime"),
-            engagement={}, text=content[:500],
+            engagement={}, text=snip(content),
         ))
         if len(rows) >= limit:
             break

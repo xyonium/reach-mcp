@@ -15,7 +15,7 @@ import os
 import httpx
 
 from reach_mcp.config import get_settings
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 from reach_mcp.whisper import download_audio, transcribe
 
 log = logging.getLogger(__name__)
@@ -245,7 +245,7 @@ class Xiaoyuzhou(Source):
                     author=pod.get("title"),
                     date=e.get("pubDate") or e.get("pub_date"),
                     engagement={},
-                    text=text[:500],
+                    text=snip(text),
                 ))
                 if len(rows) >= limit:
                     return rows

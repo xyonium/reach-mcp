@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import os
 
-from reach_mcp.sources.base import Row, Source, register_source
+from reach_mcp.sources.base import snip, Row, Source, register_source
 
 log = logging.getLogger(__name__)
 
@@ -169,7 +169,7 @@ def _parse_feeds_json(text: str, limit: int) -> list[Row]:
             author=author,
             date=str(f.get("publishTime") or ""),
             engagement=engagement,
-            text=(f.get("desc") or f.get("description") or "")[:500],
+            text=snip(f.get("desc") or f.get("description") or ""),
         ))
         if len(rows) >= limit:
             break

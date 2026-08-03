@@ -23,7 +23,7 @@ import json
 import logging
 import os
 
-from reach_mcp.sources.base import Row, get_client
+from reach_mcp.sources.base import snip, Row, get_client
 
 log = logging.getLogger(__name__)
 
@@ -139,7 +139,7 @@ def _to_row(item: dict, source: str) -> Row:
             or item.get("views") or 0,
             "shares": item.get("shares") or item.get("shareCount") or 0,
         },
-        text=text[:500],
+        text=snip(text),
     )
 
 
@@ -213,7 +213,7 @@ def _to_row_pinterest(item: dict) -> Row:
         date=None,
         engagement={"saves": item.get("saves") or 0,
                     "followers": item.get("pinnerFollowers") or 0},
-        text=text[:500],
+        text=snip(text),
     )
 
 
@@ -237,7 +237,7 @@ def _to_row_threads(item: dict) -> Row:
             "reposts": item.get("repost_count") or 0,
             "views": item.get("view_count") or 0,
         },
-        text=text[:500],
+        text=snip(text),
     )
 
 

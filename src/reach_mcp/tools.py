@@ -32,8 +32,10 @@ _SEARCH_DESC = (
     "dripstack; polec (politics & economics): truthsocial, xueqiu, stocktwits, "
     "polymarket. `sources` picks individual names from those lists; both "
     "together = union; both omitted = all available (credential-set) sources. "
-    "Set `synthesize=false` for raw rows only (re-brief later with the "
-    "synthesize tool).\n\n"
+    "Each item's `text` is a snippet — `max_chars_per_item` caps its length "
+    "(raise for fuller CN posts like xiaohongshu/xueqiu, lower to save "
+    "tokens). Set `synthesize=false` for raw rows only — no LLM rerank or "
+    "brief (re-brief later with the synthesize tool).\n\n"
     "Returns {brief, items, sources_used, source_summary, available_sources}. "
     "Each item: {source, title, url, author, date, score, engagement, text}. "
     "source_summary is one compact line per outcome — 'x:3; reddit:5 | EMPTY: "
@@ -114,13 +116,14 @@ def build_mcp(settings: Settings) -> FastMCP:
         category: list[Category] | None = None,
         days: int = 30,
         max_per_source: int = 20,
+        max_chars_per_item: int = 500,
         synthesize: bool = True,
     ) -> dict:
         client = PoliteClient(settings)
         try:
             items, reports = await run_search(
                 query, expand_categories(sources, category), days,
-                max_per_source, client, settings,
+                max_per_source, client, settings, max_chars_per_item,
             )
             brief_text = None
             if synthesize and items:

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 
 @register_source
@@ -59,6 +59,6 @@ class Dripstack(Source):
                 date=item.get("publishedAt") or item.get("date"),
                 engagement={"relevance": item.get("relevanceScore")
                             or item.get("matchConfidence") or 0},
-                text=text[:500],
+                text=snip(text),
             ))
         return rows

@@ -17,7 +17,7 @@ import shutil
 import urllib.parse
 import urllib.request
 
-from reach_mcp.sources.base import Row, Source, register_source
+from reach_mcp.sources.base import snip, Row, Source, register_source
 
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -76,7 +76,7 @@ async def _search_stock(query: str, limit: int) -> list[Row]:
             title=name,
             url=f"https://xueqiu.com/S/{code}" if code else "",
             author=None, date=None,
-            engagement={}, text=(s.get("exchange") or "")[:500],
+            engagement={}, text=snip(s.get("exchange") or ""),
         ))
     return rows
 
@@ -100,7 +100,7 @@ async def _fetch_via_api(query: str, limit: int) -> list[Row]:
             title=s.get("name") or s.get("query") or s.get("stockName") or code,
             url=f"https://xueqiu.com/S/{code}" if code else "",
             author=None, date=None,
-            engagement={}, text=(s.get("description") or "")[:500],
+            engagement={}, text=snip(s.get("description") or ""),
         ))
     return rows
 
@@ -130,7 +130,7 @@ async def _fetch_via_cli(query: str, limit: int) -> list[Row]:
             title=s.get("name") or s.get("stockName") or code,
             url=f"https://xueqiu.com/S/{code}" if code else "",
             author=None, date=None,
-            engagement={}, text=(s.get("description") or "")[:500],
+            engagement={}, text=snip(s.get("description") or ""),
         ))
     return rows
 

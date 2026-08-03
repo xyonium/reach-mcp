@@ -14,7 +14,7 @@ import asyncio
 
 import feedparser
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 _UA = "reach-mcp/0.1"
 
@@ -38,7 +38,7 @@ def _to_row(e) -> Row:
         source="reddit", id=e.get("id") or e.get("link") or "",
         title=e.get("title") or "", url=e.get("link") or "",
         author=e.get("author"), date=e.get("published"),
-        engagement={}, text=(e.get("summary") or "")[:500],
+        engagement={}, text=snip(e.get("summary") or ""),
     )
 
 

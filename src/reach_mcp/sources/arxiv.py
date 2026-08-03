@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import feedparser
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 
 @register_source
@@ -30,6 +30,6 @@ class Arxiv(Source):
                 author=authors,
                 date=e.get("published"),
                 engagement={},
-                text=(e.get("summary") or "")[:500],
+                text=snip(e.get("summary") or ""),
             ))
         return rows

@@ -63,3 +63,40 @@ async def test_list_sources_includes_all_registered():
     assert "hackernews" in SOURCES
     assert "xueqiu" in SOURCES
     assert len(SOURCES) >= 25
+
+
+class _LongTextSource:
+    name = "longtext"
+    description = "stub with long body"
+    host = "stub.test"
+    needs_auth = False
+    required_env = ()
+    default_days = 30
+    default_limit = 20
+
+    def available(self):
+        return True
+
+    async def fetch(self, query, days, limit):
+        from reach_mcp.sources.base import snip
+        return [Row(source="longtext", id="1", title="t", url="https://lt/1",
+                    engagement={}, text=snip("x" * 5000))]
+
+
+@pytest.mark.asyncio
+async def test_max_chars_per_item_controls_snippet_length():
+    SOURCES["longtext"] = _LongTextSource()
+    try:
+        client = PoliteClient(Settings())
+        items, _ = await run_search("q", ["longtext"], 30, 5, client, Settings(),
+                                    max_chars_per_item=200)
+        assert len(items[0].text) == 200
+        items, _ = await run_search("q", ["longtext"], 30, 5, client, Settings(),
+                                    max_chars_per_item=1500)
+        assert len(items[0].text) == 1500
+        # default stays 500 for the next call (no leakage between calls)
+        items, _ = await run_search("q", ["longtext"], 30, 5, client, Settings())
+        assert len(items[0].text) == 500
+        await client.aclose()
+    finally:
+        SOURCES.pop("longtext", None)

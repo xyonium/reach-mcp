@@ -11,7 +11,7 @@ import json
 import re
 import shutil
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 
 def _has_cli() -> bool:
@@ -50,7 +50,7 @@ async def _fetch_via_cli(query: str, days: int, limit: int) -> list[Row]:
             title=title, url=url,
             author=item.get("source") or item.get("author"),
             date=item.get("date") or item.get("time") or item.get("publishedAt"),
-            engagement={}, text=(item.get("summary") or item.get("description") or "")[:500],
+            engagement={}, text=snip(item.get("summary") or item.get("description") or ""),
         ))
     return rows
 

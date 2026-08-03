@@ -1,7 +1,7 @@
 """Polymarket prediction markets via the public gamma API (free, no key)."""
 from __future__ import annotations
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 
 @register_source
@@ -29,6 +29,6 @@ class Polymarket(Source):
                 url=f"https://polymarket.com/event/{m.get('slug','')}",
                 author=None, date=m.get("endDate"),
                 engagement={"volume": vol, "prices": prices},
-                text=(m.get("description") or "")[:500],
+                text=snip(m.get("description") or ""),
             ))
         return rows

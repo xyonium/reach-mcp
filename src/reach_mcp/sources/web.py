@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import os
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 
 def _searxng_params(query: str, days: int) -> dict:
@@ -35,7 +35,7 @@ async def _searxng_fetch(query: str, days: int, limit: int) -> list[Row]:
             source="web", id=r.get("url") or "",
             title=r.get("title") or "", url=r.get("url") or "",
             author=None, date=r.get("publishedDate"),
-            engagement={}, text=(r.get("content") or "")[:500],
+            engagement={}, text=snip(r.get("content") or ""),
         ))
     return rows
 
@@ -65,7 +65,7 @@ async def _brave_fetch(query: str, days: int, limit: int) -> list[Row]:
             source="web", id=r.get("url") or "",
             title=r.get("title") or "", url=r.get("url") or "",
             author=None, date=r.get("age") or r.get("page_age"),
-            engagement={}, text=(r.get("description") or "")[:500],
+            engagement={}, text=snip(r.get("description") or ""),
         ))
     return rows
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 
 @register_source
@@ -38,7 +38,7 @@ class V2EX(Source):
                 title=title, url=t.get("url") or "",
                 author=member.get("username"), date=date,
                 engagement={"replies": t.get("replies") or 0},
-                text=content[:500],
+                text=snip(content),
             ))
             if len(rows) >= limit:
                 break
