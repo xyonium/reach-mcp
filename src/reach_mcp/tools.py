@@ -19,7 +19,7 @@ from reach_mcp.pipeline import (
     render_source_summary,
     run_search,
 )
-from reach_mcp.sources import SOURCES, available_sources
+from reach_mcp.sources import SOURCES
 from reach_mcp.sources.base import Item, set_client
 from reach_mcp.synthesize import brief, rerank
 
@@ -54,7 +54,7 @@ _SEARCH_DESC = (
     "custom post-processing; pair it with fetch_content to read any item in "
     "full. `max_chars_per_item` caps snippet length (raise for fuller CN "
     "posts, lower to save tokens).\n\n"
-    "Returns {brief, items, sources_used, source_summary, available_sources}. "
+    "Returns {brief, items, sources_used, source_summary}. "
     "Each item: {source, title, url, author, date, score, engagement, text}. "
     "source_summary is one compact line per outcome — 'x:3; reddit:5 | EMPTY: "
     "rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429)'; 'gated_off' "
@@ -204,7 +204,6 @@ def build_mcp(settings: Settings) -> FastMCP:
                 "items": [_item_to_dict(i) for i in items],
                 "sources_used": [_source_report_to_dict(r) for r in reports],
                 "source_summary": render_source_summary(reports),
-                "available_sources": available_sources(),
             }
         finally:
             await client.aclose()
