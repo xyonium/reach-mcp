@@ -24,4 +24,7 @@ class Threads(Source):
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         if not self.available():
             return []
+        # The pipeline already collapsed `query` to <=2 salient words with
+        # boolean operators stripped (Threads keyword search returns zero for
+        # 3+ words or leaked "A OR B" — see query_core._STRICT_SOURCES).
         return await _apify_fetch(query, limit)

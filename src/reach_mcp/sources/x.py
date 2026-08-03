@@ -16,6 +16,7 @@ import os
 import shutil
 from pathlib import Path
 
+from reach_mcp.query_core import x_degradation_variants
 from reach_mcp.sources.base import Row, Source, get_client, register_source
 
 # Path to last30days' vendored bird-search.mjs (shared with the last30days
@@ -157,6 +158,18 @@ class X(Source):
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         if not self.available():
             return []
+        # `query` arrives already collapsed to its core subject by the pipeline
+        # (X is literal keyword AND matching — all words must appear). If the
+        # core query still returns zero, degrade like last30days bird_x: try a
+        # proper-noun OR-group, then the first two core words.
+        candidates = [query] + [v for v in x_degradation_variants(query) if v != query]
+        for q in candidates:
+            rows = await self._search_backends(q, limit)
+            if rows:
+                return rows
+        return []
+
+    async def _search_backends(self, query: str, limit: int) -> list[Row]:
         if _bird_available():
             rows = await _fetch_via_bird(query, limit)
             if rows:
