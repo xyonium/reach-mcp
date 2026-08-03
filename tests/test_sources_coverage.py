@@ -76,24 +76,27 @@ async def test_xiaoyuzhou_with_token_and_episodes(monkeypatch):
     monkeypatch.setenv("XIAOYUZHOU_ACCESS_TOKEN", "x-jike-token")
     c = AsyncMock()
     c.post_json = AsyncMock()
-    # search -> one podcast; episode list -> one episode with audio URL
+    # search -> one podcast; episode list -> one episode with audio + shownotes
     c.post_json.side_effect = [
         {"data": [{"type": "PODCAST", "pid": "p1", "title": "Cast"}]},
         {"data": [{
             "eid": "e1", "title": "Podcast ep",
             "url": "https://xyz.fm/e1", "pubDate": "2026-07-01",
             "media": {"source": {"url": "https://media.xyzcdn.net/a.m4a"}},
+            "shownotes": "本期聊了 AI 搜索的架构。",
+            "duration": 3660, "commentCount": 12,
         }]},
     ]
     set_client(c)
-    monkeypatch.setattr(
-        "reach_mcp.sources.xiaoyuzhou._transcribe_episode",
-        AsyncMock(return_value="transcribed text"),
-    )
     rows = await get_source("xiaoyuzhou").fetch("podcast", 30, 10)
     assert rows and rows[0].title == "Podcast ep"
     assert rows[0].author == "Cast"
-    assert rows[0].text == "transcribed text"
+    # metadata only: shownotes as text, audio_url carried for fetch_content,
+    # NO transcription during search
+    assert rows[0].text == "本期聊了 AI 搜索的架构。"
+    assert rows[0].audio_url == "https://media.xyzcdn.net/a.m4a"
+    assert rows[0].duration_min == 61
+    assert rows[0].engagement["commentCount"] == 12
 
 
 @pytest.mark.asyncio

@@ -183,16 +183,28 @@ def _episode_audio_url(e: dict) -> str:
     return url
 
 
-# Whisper API upload limit (OpenAI docs). Skip larger audio — transcription of
-# a full episode would exceed the API limit and/or stall the search.
-_MAX_AUDIO_BYTES = 25 * 1024 * 1024
-# Whisper first call loads the model on the GPU server (can take 30-90s);
-# subsequent calls are fast. Allow headroom for the load.
-_TRANSCRIBE_TIMEOUT = 180
+# Whisper upload cap. The 25 MB figure in OpenAI's docs applies to the hosted
+# API; self-hosted LocalAI gateways accept far more. Measured against the
+# configured gateway (2026-08-03): 50.4 MB / 60-min audio transcribed in
+# ~137 s, and 86.4 MB / 120-min in ~371 s — both HTTP 200. We cap at 90 MB as
+# a pragmatic ceiling (~2 h episodes); beyond that a single episode would
+# stall the search past the wrapper timeout. Oversized audio is SKIPPED, not
+# compressed (no ffmpeg dependency).
+_MAX_AUDIO_BYTES = 90 * 1024 * 1024
+# Measured ~3.1 s per minute of audio on the configured GPU gateway (371 s
+# for 120 min) plus first-call model load. 900 s covers the 90 MB ceiling
+# with ~2x headroom. Must stay under the pipeline wrapper timeout
+# (_SLOW_SOURCE_TIMEOUTS in pipeline.py).
+_TRANSCRIBE_TIMEOUT = 900
 
 
-async def _transcribe_episode(audio_url: str) -> str:
-    """Download + transcribe one episode's audio; "" on any failure."""
+async def transcribe_audio_url(audio_url: str) -> str:
+    """Download one episode's audio and transcribe it via Whisper; "" on failure.
+
+    This is the on-demand full-content path (see reach_mcp.content.fetch_content)
+    — NOT called during search, which only returns episode metadata + shownotes.
+    Skips audio over _MAX_AUDIO_BYTES (no ffmpeg compression).
+    """
     settings = get_settings()
     audio = await download_audio(audio_url, settings)
     if not audio:
@@ -229,14 +241,19 @@ class Xiaoyuzhou(Source):
         client = get_client()
         rows: list[Row] = []
         # Search podcasts, then pull episodes for the top ones. Keep it bounded:
-        # 2 podcasts x up to (limit/2) episodes each.
+        # 2 podcasts x up to (limit/2) episodes each. Metadata only — the audio
+        # is NOT transcribed here; full text comes from fetch_content on demand.
         pods = await _search_podcasts(client, query)
         per_pod = max(1, (limit + 1) // 2)
         for pod in pods[:2]:
             eps = await _episodes(client, pod.get("pid", ""), per_pod)
             for e in eps[:per_pod]:
                 audio_url = _episode_audio_url(e)
-                text = await _transcribe_episode(audio_url) if audio_url else ""
+                dur = e.get("duration") or (e.get("media") or {}).get("duration") or 0
+                try:
+                    mins = int(dur) // 60
+                except (TypeError, ValueError):
+                    mins = 0
                 rows.append(Row(
                     source="xiaoyuzhou",
                     id=e.get("eid") or "",
@@ -244,8 +261,13 @@ class Xiaoyuzhou(Source):
                     url=e.get("url") or f"https://www.xiaoyuzhoufm.com/episode/{e.get('eid')}",
                     author=pod.get("title"),
                     date=e.get("pubDate") or e.get("pub_date"),
-                    engagement={},
-                    text=snip(text),
+                    engagement={"commentCount": e.get("commentCount") or 0,
+                                "playCount": e.get("playCount") or 0},
+                    # shownotes snippet, not a transcript; audio_url kept so
+                    # fetch_content can transcribe this exact episode on demand.
+                    text=snip(e.get("shownotes") or e.get("description") or ""),
+                    audio_url=audio_url,
+                    duration_min=mins,
                 ))
                 if len(rows) >= limit:
                     return rows

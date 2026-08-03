@@ -37,11 +37,11 @@
 | | `web` | Searxng + Brave (optional) | `SEARXNG_URL`; `BRAVE_API_KEY` optional ($5/mo) |
 | | `dripstack` | DripStack API (free, keyless) | none |
 | | `rss` | feedparser | `RSS_FEEDS` (comma-separated feed URLs) |
-| **Video** | `youtube` | yt-dlp transcripts | `YTDLP_PROXY` (optional) |
+| **Video** | `youtube` | yt-dlp metadata; captions via `fetch_content` | `YTDLP_PROXY` (optional) |
 | **Chinese** | `xueqiu` | API (login cookie) | `XUEQIU_COOKIE` |
 | | `v2ex` | API | none |
 | | `bilibili` | bili-cli (preferred) / public API fallback | none (install `bili` for stability) |
-| | `xiaoyuzhou` | public API | `XIAOYUZHOU_ACCESS_TOKEN` (login); `WHISPER_BASE_URL` (transcription) |
+| | `xiaoyuzhou` | public API | `XIAOYUZHOU_ACCESS_TOKEN` (login); `WHISPER_BASE_URL` (for `fetch_content` transcription) |
 | | `xiaohongshu` | xiaohongshu-mcp companion | `XHS_MCP_URL` |
 | **Login-gated** *(off by default)* | `x` | cookies | `AUTH_TOKEN`/`CT0` |
 | | `truthsocial` | Mastodon API | `TRUTHSOCIAL_TOKEN` |
@@ -87,7 +87,7 @@ often return `[]` — the backend isn't broken, the query is too specific.
 **Description:**
 > Search up to 25 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
 >
-> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, xiaoyuzhou; it: github, hackernews, v2ex, rss, web; tech: arxiv, techmeme, digg, dripstack; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket. `sources` picks individual names from those lists; both together = union; both omitted = all available (credential-set) sources. Each item's `text` is a snippet -- `max_chars_per_item` caps its length (raise for fuller CN posts like xiaohongshu/xueqiu, lower to save tokens). Set `synthesize=false` for raw rows only -- no LLM rerank or brief (re-brief later with the synthesize tool).
+> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web; it: github, hackernews, v2ex, rss, arxiv, dripstack; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
 >
 > Returns `{brief, items, sources_used, source_summary, available_sources}`. Each item: `{source, title, url, author, date, score, engagement, text}`. source_summary is one compact line per outcome -- 'x:3; reddit:5 | EMPTY: rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429)'; 'gated_off' means its credential env isn't set. Match query language to platform -- Chinese keywords work best for the CN sources. Call list_sources if unsure what's configured.
 
@@ -98,6 +98,10 @@ often return `[]` — the backend isn't broken, the query is too specific.
 ### `synthesize`
 
 > LLM-synthesize a cited brief from items returned by a prior `search(synthesize=false)`, WITHOUT re-searching. Args: `query` (the original), `items` (the prior items list). Returns `{brief}`.
+
+### `fetch_content`
+
+> Fetch the full content of ONE item found via search. Two-stage retrieval: search returns metadata + a snippet for every source; call this when an item is worth reading/hearing in full. Rich-media sources have dedicated backends -- xiaoyuzhou (pass the item's `audio_url` → Whisper transcript), youtube (watch URL or video id → captions), bilibili (video URL → CC subtitles if any); every other source falls back to Jina Reader on the item's url. Args: `source`, `id_or_url`. Returns `{source, url, content, ok}`.
 
 ### `read_url`
 
@@ -120,10 +124,12 @@ often return `[]` — the backend isn't broken, the query is too specific.
 3. (optional) synthesize(query, items)     # re-brief the rows you already have
 ```
 
-- **Default** (`sources=None`, `category=None`, `synthesize=true`): searches every configured source and returns a brief + all rows. Simplest.
-- **By type** (`category=["tech"]`): one keyword scopes to a topic group (social / it / tech / polec) -- the easiest way to match the sources to the kind of query.
+- **Default** (`sources=None`, `category=None`, `synthesize=true`): searches every configured source EXCEPT podcast (opt-in), auto-backfills full content for the top rich-media items, and returns a cited brief + all rows. Simplest.
+- **By type** (`category=["tech"]`): one keyword scopes to a topic group (social / it / tech / polec / podcast) -- the easiest way to match the sources to the kind of query. Categories overlap; several union together.
 - **Targeted** (`sources=[...]`): only hit what you need -- faster, cheaper, less noise. Combines with `category` (union).
-- **Raw** (`synthesize=false`): you read the rows and draw conclusions; re-brief later with `synthesize`.
+- **Raw** (`synthesize=false`): metadata + snippets only, no backfill -- fast. Read the rows, then `fetch_content(source, id_or_url)` on the ones worth full text, and `synthesize(query, items)` to re-brief.
+- **Podcast** (`category=["podcast"]` or `sources=["xiaoyuzhou"]`): opt-in because transcription is slow (minutes per episode) -- enable only when you actually need podcasts.
+- Rich-media sources (xiaoyuzhou/youtube/bilibili) are metadata-only at search time; their transcripts/captions come from `fetch_content` (or the synthesize=true auto-backfill).
 - A gated source you name returns `gated_off` in `sources_used` -- set its credential env and retry, or drop it.
 - One broken source never breaks a search; check `sources_used` for what failed.
 
@@ -186,6 +192,10 @@ mcp:
 ```
 
 OpenWebUI then connects to `http://mcp:8000/reach` (OpenAPI) or `http://mcp:8000/reach/mcp` (native MCP).
+
+> **OpenWebUI tool description (copy-paste):** OpenWebUI lets you override a tool's human-facing description. The one below matches reach-mcp's actual categories and defaults — paste it into the tool's description field so users see what the server can do:
+>
+> > 一次查询横跨 25+ 中英文信息源 —— 社媒通用（全网搜索、小红书、B站、X/Twitter、Reddit、Instagram、Threads、TikTok、YouTube、Pinterest、Bluesky、LinkedIn）、IT 技术（GitHub、Hacker News、V2EX、RSS、arXiv、Dripstack）、科技（arXiv、Techmeme、Digg、Dripstack、Hacker News）、政经（雪球、Truth Social、Stocktwits、Polymarket）、播客（小宇宙——转录较慢，按需启用）。
 
 > **Upgrading deps:** `touch /config/UPGRADE` in the config dir, then restart the container -- the entrypoint clears its binary caches and reinstalls fresh (yt-dlp, bili-cli, pp-cli, etc.).
 >

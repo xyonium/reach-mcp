@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from reach_mcp.pipeline import (
     CATEGORIES,
+    DEFAULT_EXCLUDED,
     SourceReport,
     classify_error,
     cluster,
@@ -101,6 +102,20 @@ def test_categories_cover_every_registered_source():
     }
     grouped = {n for names in CATEGORIES.values() for n in names}
     assert grouped == on_disk  # no source left out, no phantom names
+
+
+def test_xiaoyuzhou_only_in_podcast_and_default_excluded():
+    assert CATEGORIES["podcast"] == ["xiaoyuzhou"]
+    assert "xiaoyuzhou" not in CATEGORIES["social"]
+    assert "xiaoyuzhou" in DEFAULT_EXCLUDED
+
+
+def test_sources_may_overlap_categories():
+    # arxiv/dripstack/hackernews are intentionally in two categories —
+    # category expansion unions, so overlap must not error or duplicate.
+    assert "arxiv" in CATEGORIES["it"] and "arxiv" in CATEGORIES["tech"]
+    out = expand_categories(None, ["it", "tech"])
+    assert out is not None and out.count("arxiv") == 1
 
 
 def test_render_summary_groups_empty_and_shows_counts():

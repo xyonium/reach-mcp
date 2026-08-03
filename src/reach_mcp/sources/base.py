@@ -20,6 +20,10 @@ class Row:
     date: str | None = None  # ISO-8601 string
     engagement: dict[str, Any] = field(default_factory=dict)
     text: str = ""
+    # Optional rich-media metadata (xiaoyuzhou/youtube/bilibili): lets
+    # fetch_content transcribe/caption this exact item without re-searching.
+    audio_url: str = ""
+    duration_min: int = 0
 
 
 @dataclass
@@ -34,6 +38,8 @@ class Item:
     text: str = ""
     score: float = 0.0
     cluster: str | None = None
+    audio_url: str = ""
+    duration_min: int = 0
 
 
 class Source(ABC):

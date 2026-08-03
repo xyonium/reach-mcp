@@ -34,11 +34,14 @@ async def download_audio(url: str, settings: Settings) -> bytes:
         return b""
 
 
-async def transcribe(audio: bytes, settings: Settings) -> str:
+async def transcribe(audio: bytes, settings: Settings, timeout: float = 600) -> str:
     """Transcribe audio bytes via POST {base}/audio/transcriptions.
 
     Returns the transcript text, or "" on any failure (missing base, network
-    error, non-200, empty response).
+    error, non-200, empty response). `timeout` defaults to 600s because a
+    full podcast episode (tens of MB) takes minutes on a self-hosted gateway;
+    the response can be large (verbose_json segment lists), so this is not
+    the place for the small per-request timeout.
     """
     base = settings.whisper_base_url.rstrip("/")
     if not base or not audio:
@@ -51,7 +54,7 @@ async def transcribe(audio: bytes, settings: Settings) -> str:
         "model": (None, settings.whisper_model or "whisper-large"),
     }
     try:
-        async with httpx.AsyncClient(timeout=settings.source_timeout or 90) as c:
+        async with httpx.AsyncClient(timeout=timeout) as c:
             r = await c.post(f"{base}/audio/transcriptions",
                              headers=headers, files=files)
             if r.status_code != 200:
@@ -61,5 +64,13 @@ async def transcribe(audio: bytes, settings: Settings) -> str:
     except Exception:  # noqa: BLE001
         log.debug("whisper transcription failed", exc_info=True)
         return ""
-    text = data.get("text", "") if isinstance(data, dict) else ""
-    return (text or "").strip()
+    if not isinstance(data, dict):
+        return ""
+    # OpenAI simple json: {"text": "..."}; verbose_json (LocalAI default):
+    # {"segments": [{"text": ...}, ...]}. Accept both.
+    text = data.get("text") or ""
+    if not text:
+        segs = data.get("segments")
+        if isinstance(segs, list):
+            text = " ".join(s.get("text", "") for s in segs if isinstance(s, dict))
+    return text.strip()
