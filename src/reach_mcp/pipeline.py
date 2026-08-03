@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import logging
 import math
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -212,11 +213,32 @@ async def _fetch_one(source, query: str, days: int, limit: int,
         return rows, SourceReport(source=source.name, status=status, count=len(rows))
     except Exception as e:  # noqa: BLE001
         status = classify_error(str(e))
+        err = _actionable_err(source.name, str(e))
         if status == "rate_limited":
             log.warning("source %s rate-limited: %s", source.name, e)
         else:
             log.warning("source %s errored: %s", source.name, e)
-        return [], SourceReport(source=source.name, status=status, error=str(e)[:300])
+        return [], SourceReport(source=source.name, status=status, error=err[:300])
+
+
+def _actionable_err(source_name: str, err: str) -> str:
+    """Add a fix hint to raw errors so source_summary is actionable, not a stack
+    trace. The recurring case: an Apify gateway/proxy (APIFY_BASE_URL) that can't
+    hold the long synchronous actor run returns 503 — lead with the actionable
+    part so it survives the summary's 60-char trim."""
+    if source_name in _APIFY_SOURCES and "503" in err:
+        base = os.environ.get("APIFY_BASE_URL", "").strip()
+        if base:
+            return (f"503 from gateway {base} (can't hold sync actor run; check "
+                    f"APIFY_BASE_URL/gateway) — {err}")
+    return err
+
+
+# Sources backed by Apify actors (via _apify.run_actor_sync) — used to attach a
+# gateway hint to 503s.
+_APIFY_SOURCES = frozenset({
+    "threads", "tiktok", "instagram", "pinterest", "linkedin", "quora",
+})
 
 
 # Sources exempt from the default per-source wrapper timeout — they manage

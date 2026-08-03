@@ -47,9 +47,12 @@ async def run_actor_sync(actor_id: str, run_input: dict) -> list[dict]:
     """Run an Apify Actor synchronously and return its dataset items.
 
     actor_id is the `username/actor-name` form (URL-encoded automatically).
-    Returns [] on any failure (token missing, network error, non-2xx) — except
-    quota/billing failures (402/403/429), which raise so the pipeline can
-    classify them as rate_limited instead of a silent [].
+    Returns [] only when the token is missing or the run genuinely yields no
+    items. Every abnormal HTTP response raises so the pipeline can classify it:
+    quota/billing (402/403/429) -> rate_limited, anything else (503 gateway,
+    404, 500, network) -> errored. A gateway/proxy (APIFY_BASE_URL) that can't
+    hold the long synchronous run often returns 503 — that must surface as an
+    error, not a silent no_results.
     """
     token = _token()
     if not token:
@@ -64,32 +67,22 @@ async def run_actor_sync(actor_id: str, run_input: dict) -> list[dict]:
     )
     # PoliteClient only does GET via get_json/get_text; use its underlying
     # httpx client for the POST with a JSON body.
-    try:
-        resp = await client._client.post(  # noqa: SLF001
-            url,
-            json=run_input,
-            headers={"Content-Type": "application/json"},
-            # Actors run synchronously and can take 30-120s (threads/instagram
-            # commonly ~25s+). Override the polite client's default request
-            # timeout so the run isn't cut short by a ReadTimeout.
-            timeout=180,
+    resp = await client._client.post(  # noqa: SLF001
+        url,
+        json=run_input,
+        headers={"Content-Type": "application/json"},
+        # Actors run synchronously and can take 30-120s (threads/instagram
+        # commonly ~25s+). Override the polite client's default request
+        # timeout so the run isn't cut short by a ReadTimeout.
+        timeout=180,
+    )
+    # run-sync-get-dataset-items returns 201 Created when it completes with
+    # items in the body (2xx is success; 200/201 both carry the dataset).
+    if not (200 <= resp.status_code < 300):
+        raise RuntimeError(
+            f"apify {actor_id}: HTTP {resp.status_code} — {resp.text[:200]}"
         )
-        # run-sync-get-dataset-items returns 201 Created when it completes with
-        # items in the body (2xx is success; 200/201 both carry the dataset).
-        if not (200 <= resp.status_code < 300):
-            # Surface quota/billing failures explicitly so the pipeline can
-            # report them as rate_limited (actionable) instead of a silent [].
-            if resp.status_code in (402, 403, 429):
-                raise RuntimeError(
-                    f"apify {actor_id}: {resp.status_code} — {resp.text[:200]}"
-                )
-            log.warning("apify actor %s returned %s: %s",
-                        actor_id, resp.status_code, resp.text[:200])
-            return []
-        data = resp.json()
-    except Exception:  # noqa: BLE001
-        log.debug("apify actor %s failed", actor_id, exc_info=True)
-        return []
+    data = resp.json()
     # run-sync-get-dataset-items returns the items array directly
     if isinstance(data, list):
         return data
