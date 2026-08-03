@@ -197,3 +197,37 @@ def test_apify_base_url_env_override(monkeypatch):
     assert _apify._api_base() == "https://api.apify.com"
     monkeypatch.setenv("APIFY_BASE_URL", "http://api-key-rotator:8788/")
     assert _apify._api_base() == "http://api-key-rotator:8788"  # trailing / stripped
+
+
+@pytest.mark.asyncio
+async def test_linkedin_surfaces_backend_error(monkeypatch):
+    """When every backend raises (e.g. gateway 503), linkedin re-raises so the
+    pipeline reports ERRORS instead of a silent EMPTY."""
+    monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
+    monkeypatch.delenv("SCRAPECREATORS_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "reach_mcp.sources.linkedin._apify_search",
+        AsyncMock(side_effect=RuntimeError("apify x: HTTP 503 — ")),
+    )
+    with pytest.raises(RuntimeError, match="503"):
+        await get_source("linkedin").fetch("CGM sensor", 30, 10)
+
+
+@pytest.mark.asyncio
+async def test_linkedin_partial_success_returns_rows(monkeypatch):
+    """One backend failing while another returns rows -> rows win, no raise."""
+    from reach_mcp.sources.base import Row
+    monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
+    monkeypatch.setenv("SCRAPECREATORS_API_KEY", "sc_test")
+    monkeypatch.setattr(
+        "reach_mcp.sources.linkedin._apify_search",
+        AsyncMock(side_effect=RuntimeError("apify x: HTTP 503 — ")),
+    )
+    monkeypatch.setattr(
+        "reach_mcp.sources.linkedin.scrape_search",
+        AsyncMock(return_value=[Row(source="linkedin", id="1", title="T",
+                                    url="https://linkedin.com/posts/1", author=None,
+                                    date=None, engagement={}, text="hi")]),
+    )
+    rows = await get_source("linkedin").fetch("CGM sensor", 30, 10)
+    assert rows and rows[0].source == "linkedin"
