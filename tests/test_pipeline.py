@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import pkgutil
 from datetime import datetime, timedelta, timezone
 
 from reach_mcp.pipeline import (
+    CATEGORIES,
     SourceReport,
     classify_error,
     cluster,
     dedup,
+    expand_categories,
     render_source_summary,
     score,
 )
@@ -63,6 +66,41 @@ def test_classify_error_rate_limited():
 def test_classify_error_generic():
     assert classify_error("connection reset") == "errored"
     assert classify_error("403 Forbidden") == "errored"
+
+
+def test_expand_categories_both_empty_is_none():
+    assert expand_categories(None, None) is None
+    assert expand_categories([], []) is None
+
+
+def test_expand_categories_expands_and_unions():
+    out = expand_categories(["reddit"], ["tech"])
+    assert out is not None
+    # explicit sources kept, category members appended, no duplicates
+    assert out[0] == "reddit"
+    assert set(out) == {"reddit", *CATEGORIES["tech"]}
+    assert len(out) == len(set(out))
+    # passing a source already inside the category must not duplicate it
+    out2 = expand_categories(["arxiv"], ["tech"])
+    assert out2 is not None and out2.count("arxiv") == 1
+
+
+def test_expand_categories_unknown_category_ignored():
+    assert expand_categories(None, ["bogus"]) is None
+    assert expand_categories(["reddit"], ["bogus"]) == ["reddit"]
+
+
+def test_categories_cover_every_registered_source():
+    # Compare against the source modules on disk, not the global registry —
+    # other tests (test_registry, test_integration) register stub sources
+    # ("free"/"gated"/"stub") into SOURCES that must not leak into categories.
+    import reach_mcp.sources as pkg
+    on_disk = {
+        m.name for m in pkgutil.iter_modules(pkg.__path__)
+        if m.name not in {"base", "__init__"} and not m.name.startswith("_")
+    }
+    grouped = {n for names in CATEGORIES.values() for n in names}
+    assert grouped == on_disk  # no source left out, no phantom names
 
 
 def test_render_summary_groups_empty_and_shows_counts():

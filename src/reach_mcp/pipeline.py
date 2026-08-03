@@ -8,6 +8,7 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Literal
 from urllib.parse import urlsplit, urlunsplit
 
 from reach_mcp.config import Settings
@@ -30,6 +31,49 @@ class SourceReport:
     status: str  # "ok" | "no_results" | "rate_limited" | "gated_off" | "errored" | "unknown"
     count: int = 0
     error: str | None = None
+
+
+# Topic categories for the `category` filter on the search tool. Mirrors the
+# human-facing grouping in the tool description / README: social (general,
+# incl. audio/video entertainment), it (developer/tech communities + web
+# fallback), tech (science/industry news & newsletters), polec (politics &
+# economics: political social, markets, prediction markets).
+CATEGORIES: dict[str, list[str]] = {
+    "social": [
+        "x", "reddit", "instagram", "threads", "tiktok", "xiaohongshu",
+        "bilibili", "youtube", "pinterest", "bluesky", "linkedin",
+        "xiaoyuzhou",
+    ],
+    "it": ["github", "hackernews", "v2ex", "rss", "web"],
+    "tech": ["arxiv", "techmeme", "digg", "dripstack"],
+    "polec": ["truthsocial", "xueqiu", "stocktwits", "polymarket"],
+}
+
+Category = Literal["social", "it", "tech", "polec"]
+
+
+def expand_categories(sources: list[str] | None, categories: list[str] | None) -> list[str] | None:
+    """Expand category names into source names, unioned with explicit `sources`.
+
+    Returns None (search all available) when both inputs are empty. Unknown
+    categories are silently ignored — search is a loose tool: an unknown token
+    there shouldn't hard-fail the call the way an unknown source name does
+    (that already surfaces as an "unknown" report).
+    """
+    if not categories:
+        return list(sources) if sources else None
+    names: list[str] = []
+    seen: set[str] = set()
+    for token in sources or []:
+        if token not in seen:
+            seen.add(token)
+            names.append(token)
+    for c in categories:
+        for n in CATEGORIES.get(c.strip().lower(), []):
+            if n not in seen:
+                seen.add(n)
+                names.append(n)
+    return names or None
 
 
 # Quota/rate-limit detection for actionable error reporting. Mirrors last30days'

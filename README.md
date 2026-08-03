@@ -87,23 +87,21 @@ often return `[]` — the backend isn't broken, the query is too specific.
 **Description:**
 > Search up to 25 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
 >
-> Sources (pass any subset as `sources`; omit/None = all currently-configured): free -- reddit, hackernews, bluesky, github, arxiv, techmeme, polymarket, stocktwits, web, dripstack, rss; video -- youtube; chinese -- xueqiu, v2ex, bilibili, xiaoyuzhou, xiaohongshu; login-gated (off until creds set) -- x, truthsocial, linkedin, tiktok, instagram, pinterest; binary -- digg; apify -- threads.
+> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, xiaoyuzhou; it: github, hackernews, v2ex, rss, web; tech: arxiv, techmeme, digg, dripstack; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket. `sources` picks individual names from those lists; both together = union; both omitted = all available (credential-set) sources. Set `synthesize=false` for raw rows only (re-brief later with the synthesize tool).
 >
-> Args: `query` (str, the topic/person/ticker); `sources` (list[str] | None, None=all available); `days` (int, recency window, default 30); `max_per_source` (int, row cap per source, default 20); `synthesize` (bool, default true = also LLM-rerank + write brief).
->
-> Returns: `{brief: str|null, items: [Item], sources_used: [SourceReport], available_sources: [str]}`. Each Item: `{source, title, url, author, date, score, engagement, text}`. A SourceReport tells you per-source ok/gated_off/errored so a thin result is diagnosable. Call `list_sources` first if unsure what's configured.
+> Returns `{brief, items, sources_used, source_summary, available_sources}`. Each item: `{source, title, url, author, date, score, engagement, text}`. source_summary is one compact line per outcome -- 'x:3; reddit:5 | EMPTY: rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429)'; 'gated_off' means its credential env isn't set. Match query language to platform -- Chinese keywords work best for the CN sources. Call list_sources if unsure what's configured.
 
 ### `list_sources`
 
-> List all registered sources with availability status, required credentials, and defaults. Call this FIRST to see which sources are active (credentials set) vs gated (off-by-default) before deciding `sources`. Returns `[{name, description, needs_auth, available, required_env, default_days, default_limit}]`. No arguments.
+> Inventory of all registered sources. Call before search when unsure what's active. Returns `[{name, description, needs_auth, available, required_env, default_days, default_limit}]`: available=false = gated (credential in required_env not set). No arguments.
 
 ### `synthesize`
 
-> Re-synthesize a cited brief from already-fetched items WITHOUT re-searching. Pass the original `query` and the `items` list from a prior `search(synthesize=false)`. Returns `{brief}`. Use to re-brief cheaply with different emphasis. No source calls are made.
+> LLM-synthesize a cited brief from items returned by a prior `search(synthesize=false)`, WITHOUT re-searching. Args: `query` (the original), `items` (the prior items list). Returns `{brief}`.
 
 ### `read_url`
 
-> Read the content of any URL as clean text (via Jina Reader, free). Use this to fetch and analyze a page you found in search results -- a Reddit thread, news article, blog post, or GitHub readme -- when you need the full text beyond the snippet. Args: `url` (str). Returns `{url, content, ok}`. Keyless at 20 RPM; set `JINA_API_KEY` for 500 RPM.
+> Fetch any URL as clean markdown via Jina Reader. Use for the full text of a page found via search -- a thread, article, or repo -- when the item's `text` snippet isn't enough. Returns `{url, content, ok}`; content is '' on failure. Keyless.
 
 ## For agents -- quick usage guide
 
@@ -114,12 +112,17 @@ often return `[]` — the backend isn't broken, the query is too specific.
           days=14, synthesize=false)      # get raw scored rows, reason yourself
    -- or --
    search("OpenAI vs Anthropic",
-          days=30, synthesize=true)        # one call → cited brief + rows
+          category=["tech","it"],
+          days=30, synthesize=true)          # scope by topic group
+   -- or --
+   search("OpenAI vs Anthropic",
+          days=30, synthesize=true)          # one call → cited brief + rows
 3. (optional) synthesize(query, items)     # re-brief the rows you already have
 ```
 
-- **Default** (`sources=None`, `synthesize=true`): searches every configured source and returns a brief + all rows. Simplest.
-- **Targeted** (`sources=[...]`): only hit what you need -- faster, cheaper, less noise.
+- **Default** (`sources=None`, `category=None`, `synthesize=true`): searches every configured source and returns a brief + all rows. Simplest.
+- **By type** (`category=["tech"]`): one keyword scopes to a topic group (social / it / tech / polec) -- the easiest way to match the sources to the kind of query.
+- **Targeted** (`sources=[...]`): only hit what you need -- faster, cheaper, less noise. Combines with `category` (union).
 - **Raw** (`synthesize=false`): you read the rows and draw conclusions; re-brief later with `synthesize`.
 - A gated source you name returns `gated_off` in `sources_used` -- set its credential env and retry, or drop it.
 - One broken source never breaks a search; check `sources_used` for what failed.
