@@ -188,3 +188,12 @@ async def test_quora_gated_without_token(monkeypatch):
     assert not get_source("quora").available()
     rows = await get_source("quora").fetch("q", 30, 10)
     assert rows == []
+
+
+def test_apify_base_url_env_override(monkeypatch):
+    """APIFY_BASE_URL overrides the default api.apify.com (for key-rotator)."""
+    from reach_mcp.sources import _apify
+    monkeypatch.delenv("APIFY_BASE_URL", raising=False)
+    assert _apify._api_base() == "https://api.apify.com"
+    monkeypatch.setenv("APIFY_BASE_URL", "http://api-key-rotator:8788/")
+    assert _apify._api_base() == "http://api-key-rotator:8788"  # trailing / stripped

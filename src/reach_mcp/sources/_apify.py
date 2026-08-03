@@ -27,8 +27,12 @@ from reach_mcp.sources.base import Row, get_client, snip
 
 log = logging.getLogger(__name__)
 
-_API_BASE = "https://api.apify.com/v2/acts"
-# Synchronous runs can take a while; let the pipeline's per-source timeout bound it.
+def _api_base() -> str:
+    """Apify API base. APIFY_BASE_URL overrides for key-rotator/proxy gateways
+    (e.g. http://api-key-rotator:8788) that forward to api.apify.com; unset
+    means the official endpoint. The /v2/acts path is appended by the caller.
+    """
+    return os.environ.get("APIFY_BASE_URL", "").strip().rstrip("/") or "https://api.apify.com"
 
 
 def _token() -> str:
@@ -55,7 +59,7 @@ async def run_actor_sync(actor_id: str, run_input: dict) -> list[dict]:
     # NOT the slash form — the slash form returns 404 page-not-found.
     tilde_id = actor_id.replace("/", "~")
     url = (
-        f"{_API_BASE}/{tilde_id}"
+        f"{_api_base()}/v2/acts/{tilde_id}"
         f"/run-sync-get-dataset-items?token={token}&timeout=120"
     )
     # PoliteClient only does GET via get_json/get_text; use its underlying
