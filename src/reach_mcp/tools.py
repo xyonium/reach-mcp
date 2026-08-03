@@ -10,7 +10,9 @@ from reach_mcp.config import Settings
 from reach_mcp.http import PoliteClient
 from reach_mcp.jina import read_url as jina_read_url
 from reach_mcp.pipeline import (
+    Category,
     SourceReport,
+    expand_categories,
     import_all_sources,
     render_source_summary,
     run_search,
@@ -24,47 +26,41 @@ log = logging.getLogger(__name__)
 _SEARCH_DESC = (
     "Search up to 25 social & web sources in parallel, score by engagement, "
     "optionally synthesize a cited brief. YOU control scope.\n\n"
-    "Sources (pass any subset as `sources`; omit/None = all currently-configured): "
-    "free — reddit, hackernews, bluesky, github, arxiv, techmeme, polymarket, "
-    "stocktwits, web, dripstack, rss; video — youtube; chinese — xueqiu, v2ex, "
-    "bilibili, xiaoyuzhou, xiaohongshu; login-gated (off until creds set) — x, "
-    "truthsocial, linkedin, tiktok, instagram, pinterest; binary — digg; "
-    "apify — threads.\n\n"
-    "Args: `query` (str, the topic/person/ticker); `sources` (list[str] | None, "
-    "None=all available); `days` (int, recency window, default 30); "
-    "`max_per_source` (int, row cap per source, default 20); `synthesize` (bool, "
-    "default true = also LLM-rerank + write brief).\n\n"
-    "Returns: {brief, items, sources_used, source_summary, available_sources}. "
-    "source_summary is one compact string: 'x:3; reddit:5 | EMPTY: rss, v2ex | "
-    "QUOTA: tiktok(monthly limit exceeded) | ERRORS: digg(429)' — successful "
-    "sources with counts, silent/empty sources merged on one line, and "
-    "rate-limited/errored sources with the reason. Each Item: {source, title, "
-    "url, author, date, score, engagement, text}. Call list_sources first if "
+    "Best scoping: `category` — social: x, reddit, instagram, threads, tiktok, "
+    "xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, xiaoyuzhou; "
+    "it: github, hackernews, v2ex, rss, web; tech: arxiv, techmeme, digg, "
+    "dripstack; polec (politics & economics): truthsocial, xueqiu, stocktwits, "
+    "polymarket. `sources` picks individual names from those lists; both "
+    "together = union; both omitted = all available (credential-set) sources. "
+    "Set `synthesize=false` for raw rows only (re-brief later with the "
+    "synthesize tool).\n\n"
+    "Returns {brief, items, sources_used, source_summary, available_sources}. "
+    "Each item: {source, title, url, author, date, score, engagement, text}. "
+    "source_summary is one compact line per outcome — 'x:3; reddit:5 | EMPTY: "
+    "rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429)'; 'gated_off' "
+    "means its credential env isn't set. Match query language to platform — "
+    "Chinese keywords work best for the CN sources. Call list_sources if "
     "unsure what's configured."
 )
 
 _LIST_DESC = (
-    "List all registered sources with availability status, required credentials, "
-    "and defaults. Call this FIRST to see which sources are active (credentials "
-    "set) vs gated (off-by-default) before deciding `sources`. Returns "
-    "[{name, description, needs_auth, available, required_env, default_days, "
-    "default_limit}]. No arguments."
+    "Inventory of all registered sources. Call before search when unsure "
+    "what's active. Returns [{name, description, needs_auth, available, "
+    "required_env, default_days, default_limit}]: available=false = gated "
+    "(credential in required_env not set). No arguments."
 )
 
 _SYNTH_DESC = (
-    "Re-synthesize a cited brief from already-fetched items WITHOUT re-searching. "
-    "Pass the original `query` and the `items` list from a prior "
-    "search(synthesize=false). Returns {brief}. Use to re-brief cheaply with "
-    "different emphasis. No source calls are made."
+    "LLM-synthesize a cited brief from items returned by a prior "
+    "search(synthesize=false), WITHOUT re-searching. Args: `query` (the "
+    "original), `items` (the prior items list). Returns {brief}."
 )
 
 _READ_URL_DESC = (
-    "Read the content of any URL as clean text (via Jina Reader, free). Use this "
-    "to fetch and analyze a page you found in search results - e.g. a Reddit thread, "
-    "news article, blog post, or GitHub readme - when you need the full text beyond "
-    "the snippet returned by `search`. Args: `url` (str). Returns "
-    "{url, content, ok}. `content` is the page text (markdown/plain); empty string "
-    "on failure. Keyless works at 20 RPM; set JINA_API_KEY for 500 RPM."
+    "Fetch any URL as clean markdown via Jina Reader. Use for the full text "
+    "of a page found via search — a thread, article, or repo — when the "
+    "item's `text` snippet isn't enough. Returns {url, content, ok}; content "
+    "is '' on failure. Keyless."
 )
 
 
@@ -91,9 +87,11 @@ def build_mcp(settings: Settings) -> FastMCP:
             allowed_origins=[f"http://{h}" for h in settings.allowed_hosts],
         ),
         instructions=(
-            "reach-mcp: controllable multi-source search. Call list_sources first "
-            "to see what's configured, then search(query, sources?, days?, "
-            "max_per_source?, synthesize?). Re-brief with synthesize(query, items)."
+            "Multi-source search. search(query, category=[...]) scopes by topic "
+            "group; search(query, sources=[...]) picks sources by name; both "
+            "omitted = all configured. list_sources() shows availability; "
+            "read_url(url) fetches full page text; synthesize(query, items) "
+            "re-briefs prior rows without re-searching."
         ),
     )
 
@@ -113,6 +111,7 @@ def build_mcp(settings: Settings) -> FastMCP:
     async def search(
         query: str,
         sources: list[str] | None = None,
+        category: list[Category] | None = None,
         days: int = 30,
         max_per_source: int = 20,
         synthesize: bool = True,
@@ -120,7 +119,8 @@ def build_mcp(settings: Settings) -> FastMCP:
         client = PoliteClient(settings)
         try:
             items, reports = await run_search(
-                query, sources, days, max_per_source, client, settings
+                query, expand_categories(sources, category), days,
+                max_per_source, client, settings,
             )
             brief_text = None
             if synthesize and items:
