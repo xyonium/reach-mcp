@@ -91,3 +91,24 @@ def get_client() -> PoliteClient:
     if _CLIENT is None:
         raise RuntimeError("PoliteClient not set; call set_client() before fetch()")
     return _CLIENT
+
+
+# --- per-call snippet length (sources slice text with snip(); set per search) ---
+_SNIPPET_LEN = 500
+
+
+def set_snippet_len(n: int) -> None:
+    global _SNIPPET_LEN
+    _SNIPPET_LEN = max(0, n)
+
+
+def snip(text: str) -> str:
+    """Truncate source text to the current per-call snippet length.
+
+    Sources call this instead of hardcoding [:500] so the search tool's
+    `max_chars_per_item` knob reaches every source without threading a
+    parameter through 25 fetch() signatures.
+    """
+    if _SNIPPET_LEN <= 0:
+        return ""
+    return text[:_SNIPPET_LEN]

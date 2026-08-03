@@ -18,7 +18,7 @@
 
 - 🔌 **Pick your sources.** `sources=["reddit","arxiv","xueqiu"]` or omit for all configured ones.
 - 📅 **Pick your window.** `days=7` for this week, `days=180` for the half-year -- no longer fixed at 30.
-- 🪓 **Decide what matters.** `synthesize=false` returns raw scored rows for the agent to reason over itself; `synthesize=true` (default) also runs an LLM rerank + brief.
+- 🪓 **Decide what matters.** `synthesize=false` returns raw scored rows for the agent to reason over itself; `synthesize=true` (default) also runs an LLM rerank + brief. `max_chars_per_item` sets each row's text-snippet length (default 500) -- raise it for fuller CN posts, lower it to save tokens.
 - 🌐 **Chinese & English sources in one call** -- 雪球, V2EX, B站, 小宇宙, 小红书 alongside Reddit, X, YouTube, HN, GitHub, arXiv and the rest.
 - 🛡️ **Polite by default** -- per-host pacing, honors `Retry-After`, bounded timeouts. Never hammers a site.
 
@@ -87,7 +87,7 @@ often return `[]` — the backend isn't broken, the query is too specific.
 **Description:**
 > Search up to 25 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
 >
-> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, xiaoyuzhou; it: github, hackernews, v2ex, rss, web; tech: arxiv, techmeme, digg, dripstack; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket. `sources` picks individual names from those lists; both together = union; both omitted = all available (credential-set) sources. Set `synthesize=false` for raw rows only (re-brief later with the synthesize tool).
+> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, xiaoyuzhou; it: github, hackernews, v2ex, rss, web; tech: arxiv, techmeme, digg, dripstack; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket. `sources` picks individual names from those lists; both together = union; both omitted = all available (credential-set) sources. Each item's `text` is a snippet -- `max_chars_per_item` caps its length (raise for fuller CN posts like xiaohongshu/xueqiu, lower to save tokens). Set `synthesize=false` for raw rows only -- no LLM rerank or brief (re-brief later with the synthesize tool).
 >
 > Returns `{brief, items, sources_used, source_summary, available_sources}`. Each item: `{source, title, url, author, date, score, engagement, text}`. source_summary is one compact line per outcome -- 'x:3; reddit:5 | EMPTY: rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429)'; 'gated_off' means its credential env isn't set. Match query language to platform -- Chinese keywords work best for the CN sources. Call list_sources if unsure what's configured.
 

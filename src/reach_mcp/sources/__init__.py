@@ -19,6 +19,8 @@ from reach_mcp.sources.base import (
     get_client,
     register_source,
     set_client,
+    set_snippet_len,
+    snip,
 )
 from reach_mcp.sources.base import (
     available_sources as _available_sources,
@@ -67,5 +69,5 @@ def available_sources() -> list[str]:
 __all__ = [
     "SOURCES", "Item", "Row", "Source",
     "available_sources", "get_client", "get_source", "list_sources",
-    "register_source", "set_client",
+    "register_source", "set_client", "set_snippet_len", "snip",
 ]

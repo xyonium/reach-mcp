@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 import feedparser
 
-from reach_mcp.sources.base import Row, Source, get_client, register_source
+from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
 
 
 def _feed_urls() -> list[str]:
@@ -77,7 +77,7 @@ class Rss(Source):
                     author=e.get("author"),
                     date=e.get("published") or e.get("updated"),
                     engagement={},
-                    text=summary[:500],
+                    text=snip(summary),
                 ))
                 if len(rows) >= limit:
                     break

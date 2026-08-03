@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from reach_mcp.sources.base import Row, Source, register_source
+from reach_mcp.sources.base import snip, Row, Source, register_source
 
 # Bilibili risk control 412s requests with generic UAs and without cookies.
 # Warm up the homepage first (seeds buvid3/b_nut cookies) then call the search
@@ -101,7 +101,7 @@ def _row_from_cli(v: dict) -> Row:
         engagement={"play": v.get("play") or v.get("view") or 0,
                     "reply": v.get("reply") or v.get("video_review") or 0,
                     "like": v.get("like") or 0},
-        text=(v.get("description") or v.get("desc") or "")[:500],
+        text=snip(v.get("description") or v.get("desc") or ""),
     )
 
 
@@ -137,7 +137,7 @@ async def _fetch_via_api(query: str, limit: int) -> list[Row]:
             url=v.get("arcurl") or "",
             author=author, date=date,
             engagement={"play": v.get("play") or 0, "reply": v.get("video_review") or 0},
-            text=(v.get("description") or "")[:500],
+            text=snip(v.get("description") or ""),
         ))
     return rows
 

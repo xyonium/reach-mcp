@@ -22,7 +22,7 @@ import json
 import logging
 import shutil
 
-from reach_mcp.sources.base import Row
+from reach_mcp.sources.base import snip, Row
 
 log = logging.getLogger(__name__)
 
@@ -109,5 +109,5 @@ def _to_row(item: dict, source: str) -> Row:
             "comments": item.get("comments") or item.get("commentsCount") or 0,
             "views": item.get("views") or item.get("plays") or item.get("playCount") or 0,
         },
-        text=text[:500],
+        text=snip(text),
     )

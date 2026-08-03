@@ -10,7 +10,7 @@ import asyncio
 import json
 import shutil
 
-from reach_mcp.sources.base import Row, Source, register_source
+from reach_mcp.sources.base import snip, Row, Source, register_source
 
 
 def _has_cli() -> bool:
@@ -53,6 +53,6 @@ class Digg(Source):
                 title=title, url=c.get("url") or "",
                 author=None, date=c.get("firstPostAge"),
                 engagement={"rank": c.get("rank") or 0},
-                text=(c.get("summary") or "")[:500],
+                text=snip(c.get("summary") or ""),
             ))
         return rows

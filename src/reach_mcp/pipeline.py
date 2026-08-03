@@ -13,7 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from reach_mcp.config import Settings
 from reach_mcp.http import PoliteClient
-from reach_mcp.sources.base import SOURCES, Item, Row, set_client
+from reach_mcp.sources.base import SOURCES, Item, Row, set_client, set_snippet_len
 
 log = logging.getLogger(__name__)
 
@@ -215,9 +215,11 @@ async def run_search(
     max_per_source: int,
     client: PoliteClient,
     settings: Settings,
+    max_chars_per_item: int = 500,
 ) -> tuple[list[Item], list[SourceReport]]:
     import_all_sources()
     set_client(client)
+    set_snippet_len(max_chars_per_item)
     if sources is None:
         names = [s.name for s in SOURCES.values() if s.available()]
     else:
