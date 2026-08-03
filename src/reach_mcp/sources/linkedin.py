@@ -82,8 +82,13 @@ class LinkedIn(Source):
             tasks.append(_searxng_search(query, limit))
         results = await asyncio.gather(*tasks, return_exceptions=True)
         seen, rows = set(), []
+        first_exc: Exception | None = None
         for batch in results:
-            if isinstance(batch, Exception) or not batch:
+            if isinstance(batch, Exception):
+                if first_exc is None:
+                    first_exc = batch
+                continue
+            if not batch:
                 continue
             for row in batch:
                 key = row.url or row.id
@@ -92,4 +97,9 @@ class LinkedIn(Source):
                     rows.append(row)
                 elif not key:
                     rows.append(row)
+        # All backends failed and nothing came back -> surface the error to the
+        # pipeline (gateway 503 etc.) instead of a silent EMPTY. Partial success
+        # still returns rows; all-empty-without-errors is a genuine no_results.
+        if not rows and first_exc is not None:
+            raise first_exc
         return rows[:limit]
