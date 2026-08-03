@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from reach_mcp.query_core import (
-    BASE_NOISE,
     CN_NOISE,
     SOCIAL_NOISE,
     adapt_query,
