@@ -34,22 +34,26 @@ class SourceReport:
 
 
 # Topic categories for the `category` filter on the search tool. Mirrors the
-# human-facing grouping in the tool description / README: social (general,
-# incl. audio/video entertainment), it (developer/tech communities + web
-# fallback), tech (science/industry news & newsletters), polec (politics &
-# economics: political social, markets, prediction markets).
+# human-facing grouping in the tool description / README. A source may belong
+# to several categories — category expansion is a union, so overlap is fine.
+# `podcast` is deliberately separate from `social`: transcribing episodes is
+# slow (minutes), so it's opt-in rather than part of the default social sweep.
 CATEGORIES: dict[str, list[str]] = {
     "social": [
         "x", "reddit", "instagram", "threads", "tiktok", "xiaohongshu",
-        "bilibili", "youtube", "pinterest", "bluesky", "linkedin",
-        "xiaoyuzhou",
+        "bilibili", "youtube", "pinterest", "bluesky", "linkedin", "web",
     ],
-    "it": ["github", "hackernews", "v2ex", "rss", "web"],
-    "tech": ["arxiv", "techmeme", "digg", "dripstack"],
+    "it": ["github", "hackernews", "v2ex", "rss", "arxiv", "dripstack"],
+    "tech": ["arxiv", "techmeme", "digg", "dripstack", "hackernews"],
     "polec": ["truthsocial", "xueqiu", "stocktwits", "polymarket"],
+    "podcast": ["xiaoyuzhou"],
 }
 
-Category = Literal["social", "it", "tech", "polec"]
+Category = Literal["social", "it", "tech", "polec", "podcast"]
+
+# Sources left out of the default (no-explicit-sources) sweep. Opt-in only:
+# podcast transcription is too slow for a default search.
+DEFAULT_EXCLUDED = ("xiaoyuzhou",)
 
 
 def expand_categories(sources: list[str] | None, categories: list[str] | None) -> list[str] | None:
@@ -117,7 +121,7 @@ def _row_to_item(row: Row) -> Item:
     return Item(
         source=row.source, id=row.id, title=row.title, url=row.url,
         author=row.author, date=row.date, engagement=dict(row.engagement),
-        text=row.text,
+        text=row.text, audio_url=row.audio_url, duration_min=row.duration_min,
     )
 
 
@@ -192,11 +196,12 @@ def cluster(items: list[Item]) -> list[Item]:
     return items
 
 
-async def _fetch_one(source, query: str, days: int, limit: int) -> tuple[list[Row], SourceReport]:
+async def _fetch_one(source, query: str, days: int, limit: int,
+                     timeout: float = 90) -> tuple[list[Row], SourceReport]:
     if not source.available():
         return [], SourceReport(source=source.name, status="gated_off")
     try:
-        rows = await asyncio.wait_for(source.fetch(query, days, limit), timeout=90)
+        rows = await asyncio.wait_for(source.fetch(query, days, limit), timeout=timeout)
         status = "ok" if rows else "no_results"
         return rows, SourceReport(source=source.name, status=status, count=len(rows))
     except Exception as e:  # noqa: BLE001
@@ -206,6 +211,14 @@ async def _fetch_one(source, query: str, days: int, limit: int) -> tuple[list[Ro
         else:
             log.warning("source %s errored: %s", source.name, e)
         return [], SourceReport(source=source.name, status=status, error=str(e)[:300])
+
+
+# Sources exempt from the default per-source wrapper timeout — they manage
+# their own internal deadlines that legitimately exceed it. Currently empty:
+# xiaoyuzhou/youtube/bilibili moved heavy fetching (Whisper transcription,
+# captions) out of search into the on-demand fetch_content path, so every
+# source's search-time fetch fits the default 90s again.
+_SLOW_SOURCE_TIMEOUTS: dict[str, float] = {}
 
 
 async def run_search(
@@ -221,7 +234,8 @@ async def run_search(
     set_client(client)
     set_snippet_len(max_chars_per_item)
     if sources is None:
-        names = [s.name for s in SOURCES.values() if s.available()]
+        names = [s.name for s in SOURCES.values()
+                 if s.available() and s.name not in DEFAULT_EXCLUDED]
     else:
         names = list(sources)
 
@@ -235,7 +249,9 @@ async def run_search(
             pending.append(SOURCES[n])
 
     results = await asyncio.gather(
-        *[_fetch_one(s, query, days, max_per_source) for s in pending]
+        *[_fetch_one(s, query, days, max_per_source,
+                     timeout=_SLOW_SOURCE_TIMEOUTS.get(s.name, 90))
+          for s in pending]
     )
     all_rows: list[Row] = []
     for rows, rep in results:

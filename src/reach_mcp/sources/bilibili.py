@@ -50,6 +50,46 @@ def _has_cli() -> bool:
     return shutil.which("bili") is not None
 
 
+async def fetch_subtitles(id_or_url: str) -> str:
+    """Best-effort CC subtitles for one video via bili-cli; "" if unavailable.
+
+    Used by fetch_content — B站 videos rarely carry CC tracks (the community
+    relies on danmaku, not subtitles), so most calls return "". Kept separate
+    from search (which stays metadata-only) so a video without subs never
+    stalls a query.
+    """
+    if not _has_cli():
+        return ""
+    m = re.search(r"(BV\w+)", id_or_url)
+    if not m:
+        return ""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "bili", "subtitle", m.group(1), "--json",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
+    except Exception:  # noqa: BLE001
+        return ""
+    try:
+        env = json.loads(stdout)
+    except json.JSONDecodeError:
+        return ""
+    data = env.get("data") if isinstance(env, dict) else env
+    if isinstance(data, dict):
+        subs = data.get("subtitles") or data.get("list") or []
+    elif isinstance(data, list):
+        subs = data
+    else:
+        subs = []
+    parts = []
+    for s in subs:
+        body = s.get("body") if isinstance(s, dict) else None
+        if isinstance(body, list):
+            parts.extend(str(c.get("content", "")) for c in body if isinstance(c, dict))
+    return " ".join(p for p in parts if p).strip()
+
+
 async def _fetch_via_cli(query: str, limit: int) -> list[Row]:
     """Search via `bili search ... --type video --json`. Output is a normalized
     envelope {ok, schema_version, data:{videos:[...]}, error}."""
@@ -147,7 +187,8 @@ class Bilibili(Source):
     name = "bilibili"
     description = (
         "B站 video search via bili-cli (preferred; handles anti-scraping) or "
-        "the public API fallback. Free, no login."
+        "the public API fallback. Metadata only; CC subtitles (rare) via "
+        "fetch_content(source='bilibili', ...)."
     )
     host = "api.bilibili.com"
 

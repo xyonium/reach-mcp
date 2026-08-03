@@ -18,7 +18,7 @@ import logging
 import os
 import shutil
 
-from reach_mcp.sources.base import Row, Source, register_source
+from reach_mcp.sources.base import snip, Row, Source, register_source
 
 log = logging.getLogger(__name__)
 
@@ -108,28 +108,32 @@ async def _search_videos(query: str, limit: int) -> list[dict]:
             "id": v.get("id", ""),
             "title": v.get("title", ""),
             "url": f"https://www.youtube.com/watch?v={v.get('id', '')}",
-            "text": _first_subtitle_text(v),  # shallow; "" unless the search payload carried subs
+            "text": snip(v.get("description") or ""),
             "date": v.get("upload_date"),
+            "duration_min": (v.get("duration") or 0) // 60,
             "engagement": {
                 "views": v.get("view_count") or 0,
                 "likes": v.get("like_count") or 0,
                 "comments": v.get("comment_count") or 0,
             },
         })
-    # Bounded transcript backfill for the top results (mirrors last30days'
-    # TRANSCRIPT_LIMITS approach): the search-list payload carries no subs, so
-    # fetch captions per-video via `--write-auto-subs`. Cap the count so a slow
-    # video never dominates the run. Per-video fetch is a subprocess with its
-    # own timeout; failures leave text empty (no hard fail).
-    backfill = max(1, min(limit, 2))
-    for v in out[:backfill]:
-        if v["text"]:
-            continue
-        v["text"] = await _fetch_transcript(v["id"])
+    # Metadata only — no transcript backfill. Full captions come from
+    # fetch_content(source="youtube", ...) on demand. (The old design fetched
+    # captions for the top results inline, which stalled every search on the
+    # datacenter-IP bot-wall.)
     return out[:limit]
 
 
-async def _fetch_transcript(video_id: str) -> str:
+def video_id_from(id_or_url: str) -> str:
+    """Extract the video id from a watch/share URL, or return the id unchanged."""
+    import re
+    m = re.search(r"(?:v=|youtu\.be/|shorts/)([\w-]{6,15})", id_or_url)
+    if m:
+        return m.group(1)
+    return id_or_url.strip()
+
+
+async def fetch_transcript(video_id: str) -> str:
     """Fetch a video's auto-captions via the yt-dlp CLI (VTT -> plaintext).
 
     Mirrors last30days' _fetch_transcript_ytdlp: `yt-dlp --write-auto-subs
@@ -142,7 +146,7 @@ async def _fetch_transcript(video_id: str) -> str:
     with tempfile.TemporaryDirectory(prefix="reach-yt-") as tmp:
         cmd = [
             "yt-dlp", "--ignore-config", "--no-cookies-from-browser",
-            "--write-auto-subs", "--sub-lang", "en.*", "--sub-format", "vtt",
+            "--write-auto-subs", "--sub-lang", "en.*,zh.*", "--sub-format", "vtt",
             "--skip-download", "--no-warnings", "-o", f"{tmp}/%(id)s",
             f"https://www.youtube.com/watch?v={video_id}",
         ]
@@ -163,7 +167,7 @@ async def _fetch_transcript(video_id: str) -> str:
         vtt = _read_vtt(tmp, video_id)
         if not vtt:
             return ""
-        return _clean_vtt(vtt)[:1000]
+        return _clean_vtt(vtt)
 
 
 def _read_vtt(tmp_dir: str, video_id: str) -> str:
@@ -201,32 +205,13 @@ def _clean_vtt(vtt_text: str) -> str:
     return " ".join(lines).strip()
 
 
-def _first_subtitle_text(entry: dict) -> str:
-    """Best-effort: pull the textual content of the first available subtitle track."""
-    subs = entry.get("subtitles") or {}
-    auto = entry.get("automatic_captions") or {}
-    track = None
-    for store in (subs, auto):
-        for lang in ("en", "zh"):
-            if store.get(lang):
-                track = store[lang]
-                break
-        if track:
-            break
-    if not track or not isinstance(track, list) or not track:
-        return ""
-    # yt-dlp subtitle entries are dicts with a 'text' (or 'ext') field
-    parts = []
-    for seg in track:
-        if isinstance(seg, dict) and seg.get("text"):
-            parts.append(seg["text"])
-    return " ".join(parts)[:1000]
-
-
 @register_source
 class YouTube(Source):
     name = "youtube"
-    description = "YouTube video transcripts via yt-dlp CLI (free, no cookies)."
+    description = (
+        "YouTube video search via yt-dlp CLI (free). Search returns metadata "
+        "only; full captions via fetch_content(source='youtube', ...)."
+    )
     host = "www.youtube.com"
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
@@ -235,6 +220,6 @@ class YouTube(Source):
             rows.append(Row(
                 source="youtube", id=v["id"], title=v["title"], url=v["url"],
                 author=None, date=v.get("date"), engagement=v.get("engagement", {}),
-                text=v.get("text") or "",
+                text=v.get("text") or "", duration_min=v.get("duration_min") or 0,
             ))
         return rows

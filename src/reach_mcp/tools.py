@@ -1,12 +1,14 @@
-"""MCP tool definitions: search, list_sources, synthesize."""
+"""MCP tool definitions: search, list_sources, synthesize, read_url, fetch_content."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from reach_mcp.config import Settings
+from reach_mcp.content import fetch_content
 from reach_mcp.http import PoliteClient
 from reach_mcp.jina import read_url as jina_read_url
 from reach_mcp.pipeline import (
@@ -27,15 +29,21 @@ _SEARCH_DESC = (
     "Search up to 25 social & web sources in parallel, score by engagement, "
     "optionally synthesize a cited brief. YOU control scope.\n\n"
     "Best scoping: `category` — social: x, reddit, instagram, threads, tiktok, "
-    "xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, xiaoyuzhou; "
-    "it: github, hackernews, v2ex, rss, web; tech: arxiv, techmeme, digg, "
-    "dripstack; polec (politics & economics): truthsocial, xueqiu, stocktwits, "
-    "polymarket. `sources` picks individual names from those lists; both "
-    "together = union; both omitted = all available (credential-set) sources. "
-    "Each item's `text` is a snippet — `max_chars_per_item` caps its length "
-    "(raise for fuller CN posts like xiaohongshu/xueqiu, lower to save "
-    "tokens). Set `synthesize=false` for raw rows only — no LLM rerank or "
-    "brief (re-brief later with the synthesize tool).\n\n"
+    "xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web; "
+    "it: github, hackernews, v2ex, rss, arxiv, dripstack; "
+    "tech: arxiv, techmeme, digg, dripstack, hackernews; "
+    "polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; "
+    "podcast: xiaoyuzhou. Categories overlap (e.g. github is both it and tech) "
+    "— multiple categories union. `sources` picks individual names; both "
+    "together = union; both omitted = all available sources EXCEPT podcast "
+    "(xiaoyuzhou is opt-in: episode transcription is slow, request it "
+    "explicitly when you need podcasts).\n\n"
+    "Search returns metadata + a snippet per item — xiaoyuzhou/youtube/bilibili "
+    "are NOT transcribed/captioned here. With synthesize=true the top "
+    "rich-media items are auto-backfilled with full content before the brief; "
+    "with synthesize=false call fetch_content on any item you want in full. "
+    "`max_chars_per_item` caps snippet length (raise for fuller CN posts, "
+    "lower to save tokens).\n\n"
     "Returns {brief, items, sources_used, source_summary, available_sources}. "
     "Each item: {source, title, url, author, date, score, engagement, text}. "
     "source_summary is one compact line per outcome — 'x:3; reddit:5 | EMPTY: "
@@ -65,13 +73,63 @@ _READ_URL_DESC = (
     "is '' on failure. Keyless."
 )
 
+_FETCH_CONTENT_DESC = (
+    "Fetch the full content of ONE item found via search. Two-stage "
+    "retrieval: search returns metadata + a snippet for every source; call "
+    "this when an item is worth reading/hearing in full. Rich-media sources "
+    "have dedicated backends — xiaoyuzhou (pass the item's audio_url → "
+    "Whisper transcript of the episode), youtube (watch URL or video id → "
+    "captions), bilibili (video URL → CC subtitles if the video has them, "
+    "else ''); every other source falls back to Jina Reader on the item's "
+    "url. Args: `source` (the item's source field), `id_or_url` (audio_url "
+    "for xiaoyuzhou, url/id otherwise). Returns {source, url, content, ok}. "
+    "With synthesize=true, search already backfills the top rich-media items "
+    "automatically — use this for anything beyond those."
+)
+
+# Sources whose full text comes from fetch_content, not from the search-time
+# snippet — the search(synthesize=true) auto-backfill loop targets these.
+_AUTO_BACKFILL_SOURCES = ("xiaoyuzhou", "youtube", "bilibili")
+_AUTO_BACKFILL_TOP_K = 3
+
+
+async def _backfill_rich_media(items: list[Item], settings: Settings) -> None:
+    """Fill `text` for the top rich-media items via fetch_content, in place.
+
+    With synthesize=true the rerank/brief needs real content to work with —
+    a shownotes/description snippet alone is too thin to rank or summarize.
+    We backfill the top-K rich-media items (by score) before rerank so the
+    brief cites transcripts/captions, not blurbs. Failures leave the snippet.
+    """
+    from reach_mcp.content import fetch_content  # local to avoid an import cycle
+
+    async def _fill(it: Item) -> None:
+        key = it.audio_url if (it.source == "xiaoyuzhou" and it.audio_url) else it.url
+        res = await fetch_content(it.source, key, settings)
+        if res.get("ok") and res.get("content"):
+            it.text = res["content"]
+
+    # top-K per rich-media source, so no single source hogs the budget
+    targets: list[Item] = []
+    for src in _AUTO_BACKFILL_SOURCES:
+        cands = [i for i in items if i.source == src]
+        cands.sort(key=lambda i: i.score, reverse=True)
+        targets.extend(cands[:_AUTO_BACKFILL_TOP_K])
+    if targets:
+        await asyncio.gather(*[_fill(i) for i in targets])
+
 
 def _item_to_dict(it: Item) -> dict:
-    return {
+    d = {
         "source": it.source, "id": it.id, "title": it.title, "url": it.url,
         "author": it.author, "date": it.date, "score": round(it.score, 4),
         "engagement": it.engagement, "text": it.text, "cluster": it.cluster,
     }
+    if it.audio_url:
+        d["audio_url"] = it.audio_url
+    if it.duration_min:
+        d["duration_min"] = it.duration_min
+    return d
 
 
 def _source_report_to_dict(r: SourceReport) -> dict:
@@ -91,9 +149,10 @@ def build_mcp(settings: Settings) -> FastMCP:
         instructions=(
             "Multi-source search. search(query, category=[...]) scopes by topic "
             "group; search(query, sources=[...]) picks sources by name; both "
-            "omitted = all configured. list_sources() shows availability; "
-            "read_url(url) fetches full page text; synthesize(query, items) "
-            "re-briefs prior rows without re-searching."
+            "omitted = all configured. Search returns metadata + snippets; "
+            "fetch_content(source, id_or_url) gets an item's full content "
+            "(podcast transcript, video captions, article body). list_sources() "
+            "shows availability; synthesize(query, items) re-briefs prior rows."
         ),
     )
 
@@ -127,6 +186,7 @@ def build_mcp(settings: Settings) -> FastMCP:
             )
             brief_text = None
             if synthesize and items:
+                await _backfill_rich_media(items, settings)
                 items = await rerank(query, items, settings)
                 brief_text = await brief(query, items, settings)
             return {
@@ -147,6 +207,10 @@ def build_mcp(settings: Settings) -> FastMCP:
             engagement=i.get("engagement", {}), text=i.get("text", ""),
         ) for i in items]
         return {"brief": await brief(query, parsed, settings)}
+
+    @mcp.tool(name="fetch_content", description=_FETCH_CONTENT_DESC)
+    async def fetch_content_tool(source: str, id_or_url: str) -> dict:
+        return await fetch_content(source, id_or_url, settings)
 
     @mcp.tool(description=_READ_URL_DESC)
     async def read_url(url: str) -> dict:
