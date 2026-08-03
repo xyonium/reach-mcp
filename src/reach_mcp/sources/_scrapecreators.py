@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-from reach_mcp.sources.base import snip, Row
+from reach_mcp.sources.base import Row, snip
 
 
 async def scrape_search(client, platform: str, query: str, limit: int) -> list[Row]:

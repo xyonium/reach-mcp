@@ -1,87 +1,55 @@
-"""LinkedIn via Jina (free, agent-reach's approach) + optional ScrapeCreators.
+"""LinkedIn public posts search.
 
-Agent Reach uses Jina Reader for LinkedIn's basic content. reach-mcp follows
-the same approach:
+Backends, in priority order:
 
-- Primary: Jina search (`s.jina.ai`) scoped to linkedin.com, returns public
-  posts/articles. Needs a free `JINA_API_KEY` (free monthly rate-limit quota,
-  not one-time credits). Without a key, s.jina.ai is blocked.
-- Fallback reader: `r.jina.ai` reads the body of any LinkedIn URL (free even
-  without a key, 20 RPM). Not used for discovery, only if a URL is known.
-- Optional boost: ScrapeCreators (`SCRAPECREATORS_API_KEY`) - 100 one-time
-  credits, runs in parallel only if a key is set.
+- **Apify** (`apimaestro/linkedin-posts-search-scraper-no-cookies`, needs
+  `APIFY_API_TOKEN`): keyword search over public posts, no LinkedIn cookies
+  required. This is the only backend that actually returns LinkedIn results.
+- **Searxng** (free, same engine as the `web` source): `site:linkedin.com`
+  scoped query as a keyless fallback. Quality varies — LinkedIn blocks most
+  crawlers, so hits are sporadic.
 
-Jina's free key is a recurring monthly rate-limit quota (20 RPM no key,
-500 RPM free key, 5000 RPM paid) - it is NOT a one-time credit.
+Jina's `s.jina.ai` was REMOVED 2026-08-03: it doesn't index LinkedIn (every
+query returned 0) and burns one-time grant tokens. `r.jina.ai` stays — it's
+what `read_url` uses, and it doesn't consume search tokens.
 """
 from __future__ import annotations
 
 import asyncio
 import os
-import re
 
 from reach_mcp.sources._scrapecreators import scrape_search
-from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
+from reach_mcp.sources.base import Row, Source, get_client, register_source, snip
 
 
-async def _jina_search(query: str, limit: int) -> list[Row]:
-    """Search LinkedIn via Jina's s.jina.ai endpoint (needs free JINA_API_KEY)."""
+async def _apify_search(query: str, limit: int) -> list[Row]:
+    from reach_mcp.sources._apify import fetch_linkedin_posts, has_token
+    if not has_token():
+        return []
+    return await fetch_linkedin_posts(query, limit)
+
+
+async def _searxng_search(query: str, limit: int) -> list[Row]:
+    """site:linkedin.com scoped query via the same Searxng the web source uses."""
+    base = os.environ.get("SEARXNG_URL", "http://searxng:8080").rstrip("/")
     client = get_client()
-    key = os.environ.get("JINA_API_KEY", "").strip()
-    if not key:
-        return []  # s.jina.ai is blocked without a key
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Accept": "application/json",
-        "X-Retain-Images": "none",
-    }
-    # Note: s.jina.ai returns HTTP 500 for any query containing "site:linkedin.com"
-    # (Jina's backend rejects the site: scoping), so we use the bare query and
-    # filter for linkedin.com URLs client-side instead.
     try:
         data = await client.get_json(
-            "https://s.jina.ai/",
-            params={"q": query, "count": str(min(limit * 3, 50))},
-            headers=headers,
+            base + "/search",
+            params={"q": f"site:linkedin.com/posts {query}", "format": "json"},
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         return []
     rows: list[Row] = []
-    results = data.get("data") or []
-    for r in results:
+    for r in (data.get("results") or [])[:limit]:
         url = r.get("url") or ""
         if "linkedin.com" not in url:
-            continue  # drop non-LinkedIn results from the unscopped query
-        title = (r.get("title") or "")[:200]
-        content = r.get("content") or ""
-        rows.append(Row(
-            source="linkedin", id=url or title, title=title, url=url,
-            author=None, date=r.get("publishedTime"),
-            engagement={}, text=snip(content),
-        ))
-        if len(rows) >= limit:
-            break
-    return rows
-
-
-def _parse_jina_reader_markdown(md: str) -> list[Row]:
-    """Best-effort extraction of LinkedIn post/article links from a Jina reader
-    markdown blob. Jina reader returns the page text; we pull linkedin URLs."""
-    rows: list[Row] = []
-    seen = set()
-    for m in re.finditer(
-        r"https?://(?:www\.)?linkedin\.com/(?:posts|pulse)/[\w-]+", md
-    ):
-        url = m.group(0).rstrip(").,]")
-        if url in seen:
             continue
-        seen.add(url)
-        # Try to grab a nearby title line
-        start = md.rfind("\n", 0, m.start())
-        line = md[start:m.start()].strip(" \n#*")
-        title = (line[:200] if line else "LinkedIn post") or "LinkedIn post"
-        rows.append(Row(source="linkedin", id=url, title=title, url=url,
-                        author=None, date=None, engagement={}, text=""))
+        rows.append(Row(
+            source="linkedin", id=url, title=(r.get("title") or "")[:200],
+            url=url, author=None, date=None, engagement={},
+            text=snip(r.get("content") or ""),
+        ))
     return rows
 
 
@@ -89,25 +57,29 @@ def _parse_jina_reader_markdown(md: str) -> list[Row]:
 class LinkedIn(Source):
     name = "linkedin"
     description = (
-        "LinkedIn public posts/articles via Jina (free, monthly rate-limit quota; "
-        "set JINA_API_KEY for search). Optional ScrapeCreators boost "
-        "(SCRAPECREATORS_API_KEY, 100 one-time credits)."
+        "LinkedIn public posts via Apify (keyword search, no LinkedIn login "
+        "needed; set APIFY_API_TOKEN) with a Searxng site: fallback. "
+        "Optional ScrapeCreators boost (SCRAPECREATORS_API_KEY)."
     )
     host = "www.linkedin.com"
     needs_auth = False
     required_env = ()
 
     def available(self) -> bool:  # type: ignore[override]
-        # Available if Jina key is set OR an SC key is set for the boost path.
+        # Apify token OR SC key OR a configured Searxng all make it worth a shot.
         return bool(
-            os.environ.get("JINA_API_KEY", "").strip()
+            os.environ.get("APIFY_API_TOKEN", "").strip()
             or os.environ.get("SCRAPECREATORS_API_KEY", "").strip()
+            or os.environ.get("SEARXNG_URL", "").strip()
         )
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
-        tasks: list = [_jina_search(query, limit)]
+        tasks: list = [_apify_search(query, limit)]
         if os.environ.get("SCRAPECREATORS_API_KEY", "").strip():
             tasks.append(scrape_search(get_client(), "linkedin", query, limit))
+        if not os.environ.get("APIFY_API_TOKEN", "").strip():
+            # Only bother with the Searxng fallback when Apify isn't configured.
+            tasks.append(_searxng_search(query, limit))
         results = await asyncio.gather(*tasks, return_exceptions=True)
         seen, rows = set(), []
         for batch in results:

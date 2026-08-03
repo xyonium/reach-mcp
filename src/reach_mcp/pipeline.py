@@ -42,6 +42,7 @@ CATEGORIES: dict[str, list[str]] = {
     "social": [
         "x", "reddit", "instagram", "threads", "tiktok", "xiaohongshu",
         "bilibili", "youtube", "pinterest", "bluesky", "linkedin", "web",
+        "quora",
     ],
     "it": ["github", "hackernews", "v2ex", "rss", "arxiv", "dripstack"],
     "tech": ["arxiv", "techmeme", "digg", "dripstack", "hackernews"],
