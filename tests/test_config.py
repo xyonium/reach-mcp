@@ -14,6 +14,7 @@ def test_defaults(monkeypatch):
     assert s.port == 8765
     assert s.rerank_model == "gemini-flash-lite"
     assert s.brief_model == "gemini-flash-lite"
+    assert s.openai_base_url == "https://api.openai.com/v1"
     assert s.source_timeout == 60
     assert s.request_timeout == 15
     assert s.min_host_delay == 0.5
