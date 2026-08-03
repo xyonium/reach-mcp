@@ -1,6 +1,6 @@
 # reach-mcp
 
-> A controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, Hacker News, GitHub, arXiv, Polymarket, 雪球, V2EX, B站, 小宇宙 and more -- **you pick the sources, the window, and whether to synthesize.** Built to replace the closed `last30days` server with an open, agent-driven one.
+> A controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, Hacker News, GitHub, arXiv, Polymarket, 雪球, V2EX, B站, 小宇宙 and more -- **you pick the sources, the window, and whether to synthesize.** 25 sources across Chinese & English platforms, with adjustable time window, source/category scoping, and optional LLM synthesis.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-green.svg?logo=python&logoColor=white)](https://www.python.org/)
@@ -12,14 +12,14 @@
 
 ## Why
 
-`last30days` is a black box: the agent passes a query and gets back a finished brief. It can't choose which sources to hit, can't widen or narrow the time window (hardcoded to 30 days), can't see the raw scored rows, and can't reuse them. Every call re-searches everything.
+`last30days` (mvanhorn/last30days-skill) wraps the search in a fixed pipeline: the agent passes a query and gets back a finished brief. It can't choose which sources to hit, can't widen or narrow the time window (hardcoded to 30 days), can't see the raw scored rows, and can't reuse them. Every call re-searches everything.
 
-**reach-mcp** keeps everything good about last30days -- parallel multi-source fetch, engagement-based scoring, cross-source dedup/clustering, an optional LLM-synthesized cited brief -- and hands the steering wheel to the agent:
+**reach-mcp** keeps the same core machinery -- parallel multi-source fetch, engagement-based scoring, cross-source dedup/clustering, an optional LLM-synthesized cited brief -- and exposes it as a plain MCP server whose knobs the agent controls per call:
 
 - 🔌 **Pick your sources.** `sources=["reddit","arxiv","xueqiu"]` or omit for all configured ones.
 - 📅 **Pick your window.** `days=7` for this week, `days=180` for the half-year -- no longer fixed at 30.
 - 🪓 **Decide what matters.** `synthesize=false` returns raw scored rows for the agent to reason over itself; `synthesize=true` (default) also runs an LLM rerank + brief.
-- 🇨🇳 **Chinese sources last30days lacks** -- 雪球, V2EX, B站, 小宇宙, 小红书 -- alongside nearly every source last30days ships.
+- 🌐 **Chinese & English sources in one call** -- 雪球, V2EX, B站, 小宇宙, 小红书 alongside Reddit, X, YouTube, HN, GitHub, arXiv and the rest.
 - 🛡️ **Polite by default** -- per-host pacing, honors `Retry-After`, bounded timeouts. Never hammers a site.
 
 ## Sources (25)
@@ -151,7 +151,7 @@ See [docker-compose.yml](docker-compose.yml) for a full example with all availab
 
 ### Option C -- mcpo (multi-server host, recommended for OpenWebUI)
 
-[mcpo](https://github.com/open-webui/mcpo) launches many MCP servers via `uvx` and exposes each as an OpenAPI endpoint. reach-mcp is a 1:1 drop-in replacement for the closed `last30days` server -- just swap the `config.json` entry.
+[mcpo](https://github.com/open-webui/mcpo) launches many MCP servers via `uvx` and exposes each as an OpenAPI endpoint. If you're already running the last30days server through mcpo, reach-mcp drops into the same slot -- just swap the `config.json` entry.
 
 **1. config.json** -- list reach-mcp (see [deploy/mcpo-config.example.json](deploy/mcpo-config.example.json) for the full env set):
 ```jsonc
