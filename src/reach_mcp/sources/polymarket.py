@@ -1,7 +1,7 @@
 """Polymarket prediction markets via the public gamma API (free, no key)."""
 from __future__ import annotations
 
-from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
+from reach_mcp.sources.base import Row, Source, get_client, register_source, snip
 
 
 @register_source

@@ -1,9 +1,10 @@
-"""Jina Reader / Search helpers - free, recurring monthly-quota APIs.
+"""Jina Reader helper - free, recurring monthly rate-limit quota.
 
 r.jina.ai/{url}  - page reader. Keyless: 20 RPM. With JINA_API_KEY: 500 RPM.
-s.jina.ai/{q}    - web search. Requires JINA_API_KEY (free key works).
 
-Both are recurring monthly rate-limit quotas, NOT one-time credits.
+s.jina.ai (Jina's search endpoint) is intentionally NOT used: it doesn't index
+LinkedIn (the one place we tried it), and it burns one-time grant tokens.
+Web search is covered by Searxng (free) and Brave ($5/mo recurring credits).
 """
 from __future__ import annotations
 
@@ -30,28 +31,3 @@ async def read_url(url: str) -> str:
         )
     except Exception:
         return ""
-
-
-async def jina_search(query: str, limit: int = 20) -> list[dict]:
-    """Web search via s.jina.ai (requires free JINA_API_KEY).
-
-    Returns a list of {title, url, content, publishedTime} dicts.
-    """
-    client = get_client()
-    key = os.environ.get("JINA_API_KEY", "").strip()
-    if not key:
-        return []
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Accept": "application/json",
-        "X-Retain-Images": "none",
-    }
-    try:
-        data = await client.get_json(
-            "https://s.jina.ai/",
-            params={"q": query, "count": str(min(limit, 20))},
-            headers=headers,
-        )
-    except Exception:
-        return []
-    return data.get("data") or []

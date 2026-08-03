@@ -23,7 +23,7 @@ import json
 import logging
 import os
 
-from reach_mcp.sources.base import snip, Row, get_client
+from reach_mcp.sources.base import Row, get_client, snip
 
 log = logging.getLogger(__name__)
 
@@ -194,6 +194,93 @@ async def fetch_pinterest(query: str, limit: int) -> list[Row]:
     return [_to_row_pinterest(it) for it in items[:limit]]
 
 
+async def fetch_linkedin_posts(query: str, limit: int) -> list[Row]:
+    """LinkedIn posts via apimaestro/linkedin-posts-search-scraper-no-cookies.
+
+    Actor verified 2026-08: keyword search over PUBLIC LinkedIn posts, NO
+    cookies/login needed. Input: keyword (required), limit, sort_type
+    (relevance|date_posted), date_filter (past-24h|past-week|past-month).
+    ~$5 per 1,000 results. This is the real fix for LinkedIn — Jina's generic
+    web search doesn't index LinkedIn at all (returns 0 for any query), and
+    s.jina.ai burns one-time tokens.
+    """
+    items = await run_actor_sync(
+        "apimaestro/linkedin-posts-search-scraper-no-cookies", {
+            "keyword": query,
+            "limit": min(limit, 50),
+            "sort_type": "relevance",
+        })
+    return [_to_row_linkedin(it) for it in items[:limit]]
+
+
+async def fetch_quora(query: str, limit: int) -> list[Row]:
+    """Quora Q&A via api-empire/quora-search-scraper (keyword search).
+
+    Actor verified 2026-08: searchQueries[] + maxResults returns questions and
+    answers with engagement (upvotes, comments, views). No login/cookies.
+    """
+    items = await run_actor_sync("api-empire/quora-search-scraper", {
+        "searchQueries": [query],
+        "maxResults": min(limit, 30),
+    })
+    return [_to_row_quora(it) for it in items[:limit]]
+
+
+def _to_row_quora(item: dict) -> Row:
+    """Normalize an api-empire/quora-search-scraper item into a Row.
+
+    Result shape (question or answer): {type, question/title, answer/text,
+    url, author/username, upvotes/upvote_count, comments/comment_count,
+    views/view_count, shares/share_count, created_at/timestamp}. Field aliases
+    vary between question and answer records.
+    """
+    # An answer record carries its parent question as the title context.
+    title = (item.get("question") or item.get("title") or item.get("question_title") or "")
+    text = (item.get("answer") or item.get("text") or item.get("content")
+            or item.get("answer_text") or "")
+    url = _str_field(item, "url", "question_url", "answer_url", "link", "permalink")
+    return Row(
+        source="quora",
+        id=_str_field(item, "id", "question_id", "answer_id") or url,
+        title=title[:120],
+        url=url,
+        author=_str_field(item, "author", "username", "author_name") or None,
+        date=_str_field(item, "created_at", "timestamp", "date", "posted_at"),
+        engagement={
+            "upvotes": item.get("upvotes") or item.get("upvote_count") or 0,
+            "comments": item.get("comments") or item.get("comment_count") or 0,
+            "views": item.get("views") or item.get("view_count") or 0,
+            "shares": item.get("shares") or item.get("share_count") or 0,
+        },
+        text=snip(text),
+    )
+def _to_row_linkedin(item: dict) -> Row:
+    """Normalize an apimaestro linkedin-posts item into a Row.
+
+    Post shape (public posts): {post_url/url, text/content, author/name,
+    author_url, posted_at/date, likes/num_likes, comments/num_comments,
+    reposts/num_reposts}. Field aliases vary between actor versions.
+    """
+    text = (item.get("text") or item.get("content") or item.get("post_text") or "")
+    url = _str_field(item, "post_url", "url", "postUrl", "link", "permalink")
+    author = (_str_field(item, "author", "author_name", "name", "profile_name")
+              or None)
+    return Row(
+        source="linkedin",
+        id=_str_field(item, "id", "post_id", "urn") or url,
+        title=text[:120] or _str_field(item, "title"),
+        url=url,
+        author=author,
+        date=_str_field(item, "posted_at", "date", "posted_date", "created_at"),
+        engagement={
+            "likes": item.get("likes") or item.get("num_likes") or 0,
+            "comments": item.get("comments") or item.get("num_comments") or 0,
+            "reposts": item.get("reposts") or item.get("num_reposts") or 0,
+        },
+        text=snip(text),
+    )
+
+
 def _to_row_pinterest(item: dict) -> Row:
     """Normalize an automation-lab/pinterest-scraper item into a Row.
 
@@ -263,6 +350,7 @@ def _to_row_instagram(item: dict) -> Row:
 __all__ = [
     "has_token", "run_actor_sync",
     "fetch_threads", "fetch_tiktok", "fetch_instagram", "fetch_pinterest",
+    "fetch_linkedin_posts", "fetch_quora",
 ]
 # keep json import referenced for clarity (used by callers if needed)
 _ = json

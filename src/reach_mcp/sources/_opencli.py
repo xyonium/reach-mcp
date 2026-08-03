@@ -22,7 +22,7 @@ import json
 import logging
 import shutil
 
-from reach_mcp.sources.base import snip, Row
+from reach_mcp.sources.base import Row, snip
 
 log = logging.getLogger(__name__)
 

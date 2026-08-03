@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from reach_mcp.sources.base import snip, Row, Source, register_source
+from reach_mcp.sources.base import Row, Source, register_source, snip
 
 # Bilibili risk control 412s requests with generic UAs and without cookies.
 # Warm up the homepage first (seeds buvid3/b_nut cookies) then call the search

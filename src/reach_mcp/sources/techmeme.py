@@ -11,7 +11,7 @@ import json
 import re
 import shutil
 
-from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
+from reach_mcp.sources.base import Row, Source, get_client, register_source, snip
 
 
 def _has_cli() -> bool:

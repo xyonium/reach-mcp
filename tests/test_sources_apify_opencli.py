@@ -164,3 +164,27 @@ async def _call_tool(mcp, name, args):
     tools_map = {t.name: t for t in await mcp.list_tools()}
     tool = tools_map[name]
     return await tool.fn(**args)
+
+
+@pytest.mark.asyncio
+async def test_quora_uses_apify_when_token_set(monkeypatch):
+    """quora fetches via Apify when APIFY_API_TOKEN is set."""
+    monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
+    monkeypatch.setattr(
+        "reach_mcp.sources._apify.fetch_quora",
+        AsyncMock(return_value=[Row(
+            source="quora", id="1", title="What is MCP?",
+            url="https://quora.com/What-is-MCP", author="someone",
+            date=None, engagement={"upvotes": 42}, text="MCP is a protocol...")]),
+    )
+    rows = await get_source("quora").fetch("MCP", 30, 10)
+    assert rows and rows[0].source == "quora"
+    assert rows[0].engagement["upvotes"] == 42
+
+
+@pytest.mark.asyncio
+async def test_quora_gated_without_token(monkeypatch):
+    monkeypatch.delenv("APIFY_API_TOKEN", raising=False)
+    assert not get_source("quora").available()
+    rows = await get_source("quora").fetch("q", 30, 10)
+    assert rows == []

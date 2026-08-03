@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import os
 
-from reach_mcp.sources.base import snip, Row, Source, register_source
+from reach_mcp.sources.base import Row, Source, register_source, snip
 
 log = logging.getLogger(__name__)
 

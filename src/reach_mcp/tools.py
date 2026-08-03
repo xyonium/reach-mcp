@@ -26,10 +26,10 @@ from reach_mcp.synthesize import brief, rerank
 log = logging.getLogger(__name__)
 
 _SEARCH_DESC = (
-    "Search up to 25 social & web sources in parallel, score by engagement, "
+    "Search up to 26 social & web sources in parallel, score by engagement, "
     "optionally synthesize a cited brief. YOU control scope.\n\n"
     "Best scoping: `category` — social: x, reddit, instagram, threads, tiktok, "
-    "xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web; "
+    "xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, quora; "
     "it: github, hackernews, v2ex, rss, arxiv, dripstack; "
     "tech: arxiv, techmeme, digg, dripstack, hackernews; "
     "polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; "

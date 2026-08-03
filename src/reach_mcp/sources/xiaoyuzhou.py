@@ -15,7 +15,7 @@ import os
 import httpx
 
 from reach_mcp.config import get_settings
-from reach_mcp.sources.base import snip, Row, Source, get_client, register_source
+from reach_mcp.sources.base import Row, Source, get_client, register_source, snip
 from reach_mcp.whisper import download_audio, transcribe
 
 log = logging.getLogger(__name__)

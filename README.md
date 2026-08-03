@@ -1,6 +1,6 @@
 # reach-mcp
 
-> A controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, Hacker News, GitHub, arXiv, Polymarket, 雪球, V2EX, B站, 小宇宙 and more -- **you pick the sources, the window, and whether to synthesize.** 25 sources across Chinese & English platforms, with adjustable time window, source/category scoping, and optional LLM synthesis.
+> A controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, Hacker News, GitHub, arXiv, Polymarket, 雪球, V2EX, B站, 小宇宙 and more -- **you pick the sources, the window, and whether to synthesize.** 26 sources across Chinese & English platforms, with adjustable time window, source/category scoping, and optional LLM synthesis.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-green.svg?logo=python&logoColor=white)](https://www.python.org/)
@@ -45,16 +45,17 @@
 | | `xiaohongshu` | xiaohongshu-mcp companion | `XHS_MCP_URL` |
 | **Login-gated** *(off by default)* | `x` | cookies | `AUTH_TOKEN`/`CT0` |
 | | `truthsocial` | Mastodon API | `TRUTHSOCIAL_TOKEN` |
-| | `linkedin` | Jina (free, monthly quota) + ScrapeCreators (optional) | `JINA_API_KEY`; `SCRAPECREATORS_API_KEY` optional |
+| | `linkedin` | Apify (public posts) + Searxng fallback + ScrapeCreators (optional) | `APIFY_API_TOKEN` ($5/mo); `SEARXNG_URL` for fallback; `SCRAPECREATORS_API_KEY` optional |
 | | `tiktok` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | | `instagram` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | | `pinterest` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | **Binary** *(optional)* | `digg` | `digg-pp-cli` | none (needs the CLI on PATH) |
 | **Apify** | `threads` | Apify threads-scraper | `APIFY_API_TOKEN` ($5/mo recurring) |
+| | `quora` | Apify quora-search-scraper | `APIFY_API_TOKEN` (same key) |
 
-> 💰 **Apify gives $5 free credits EVERY MONTH** (recurring, not one-time) on the Free plan -- enough for hundreds of search runs. Set `APIFY_API_TOKEN` to enable threads + boost tiktok/instagram/pinterest (Apify is the preferred backend; OpenCLI is a free desktop alternative; ScrapeCreators is a one-time-credit fallback).
+> 💰 **Apify gives $5 free credits EVERY MONTH** (recurring, not one-time) on the Free plan -- enough for hundreds of search runs. Set `APIFY_API_TOKEN` to enable threads + quora + boost tiktok/instagram/pinterest/linkedin (Apify is the preferred backend; OpenCLI is a free desktop alternative; ScrapeCreators is a one-time-credit fallback).
 
-> ⚠️ **ScrapeCreators is 100 credits one-time, not free recurring.** It's now the lowest-priority fallback for tiktok/instagram/pinterest -- prefer Apify (monthly free) or OpenCLI (desktop, free). **LinkedIn uses Jina** (free `JINA_API_KEY` = monthly rate-limit quota).
+> ⚠️ **ScrapeCreators is 100 credits one-time, not free recurring.** It's now the lowest-priority fallback for tiktok/instagram/pinterest -- prefer Apify (monthly free) or OpenCLI (desktop, free). **LinkedIn uses Apify** for public posts (same `APIFY_API_TOKEN`, no LinkedIn login).
 
 ## Query syntax by source
 
@@ -223,7 +224,7 @@ GH_TOKEN="ghp_..."                           # GitHub personal access token (hig
 BSKY_HANDLE="you.bsky.social"                # Bluesky handle (optional)
 BSKY_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"      # Bluesky app password (optional)
 YTDLP_PROXY="http://proxy:8080"              # proxy for yt-dlp (optional)
-JINA_API_KEY="jina_..."                      # Jina key (LinkedIn search + read_url; free monthly quota)
+JINA_API_KEY="jina_..."                      # Jina key (read_url page reader only; keyless works at 20 RPM)
 BRAVE_API_KEY="BSA_..."                      # Brave Search key (web boost; $5 free credits/mo recurring)
 RSS_FEEDS="https://blog.example.com/feed"    # comma-separated RSS/Atom feed URLs (rss source)
 
@@ -304,16 +305,16 @@ One key enables three SC-only sources (and an optional LinkedIn boost):
 - `tiktok` -- TikTok search (no free alternative exists)
 - `instagram` -- Instagram search (Meta API requires app review)
 - `pinterest` -- Pinterest search (no free alternative exists)
-- `linkedin` -- Optional boost (Jina is the free primary)
+- `linkedin` -- Optional boost (Apify is the primary)
 
 #### LinkedIn
 
-LinkedIn uses **Jina** as its free primary backend (agent-reach's approach). Jina's `s.jina.ai` search endpoint scopes to `linkedin.com/posts` and `linkedin.com/pulse`.
+LinkedIn searches **public posts via Apify** (`apimaestro/linkedin-posts-search-scraper-no-cookies`) -- keyword search, no LinkedIn cookies/login needed:
 
-1. Get a free Jina API key at [jina.ai](https://jina.ai/) (Reader API)
-2. Set `JINA_API_KEY=jina_...`
+1. Set `APIFY_API_TOKEN` (same key as tiktok/instagram/pinterest; $5 free credits/month recurring)
+2. That's it -- `linkedin` is enabled alongside the other Apify sources
 
-Jina's free key is a **recurring monthly rate-limit quota** (20 RPM without a key, 500 RPM with a free key, 5000 RPM paid) -- it is NOT a one-time credit. `s.jina.ai` search requires a key; `r.jina.ai` (page reader) works without one.
+Without an Apify token it falls back to a `site:linkedin.com` query through your configured Searxng (free but sporadic -- LinkedIn blocks most crawlers). Jina's `s.jina.ai` was removed 2026-08: it doesn't index LinkedIn (every query returned 0) and burns one-time tokens. `r.jina.ai` stays for `read_url` (page reader, no search tokens).
 
 Optionally, setting `SCRAPECREATORS_API_KEY` adds ScrapeCreators results in parallel for a richer result set.
 
@@ -385,7 +386,7 @@ If neither is set, `youtube` still works when reach runs from a residential/host
 
 Digg is auto-enabled when the `digg-pp-cli` binary is on `PATH`. Built from the last30days project's build steps. Without the CLI, `digg` stays gated off.
 
-#### Apify (`APIFY_API_TOKEN`) -- threads, tiktok, instagram, pinterest
+#### Apify (`APIFY_API_TOKEN`) -- threads, tiktok, instagram, pinterest, linkedin, quora
 
 Apify's Free plan gives **$5 in credits every month** (recurring, not one-time) -- enough for hundreds of search runs. One token enables:
 

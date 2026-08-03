@@ -17,7 +17,7 @@ import shutil
 import urllib.parse
 import urllib.request
 
-from reach_mcp.sources.base import snip, Row, Source, register_source
+from reach_mcp.sources.base import Row, Source, register_source, snip
 
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
