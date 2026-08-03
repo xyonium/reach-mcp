@@ -13,6 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from reach_mcp.config import Settings
 from reach_mcp.http import PoliteClient
+from reach_mcp.query_core import adapt_query
 from reach_mcp.sources.base import SOURCES, Item, Row, set_client, set_snippet_len
 
 log = logging.getLogger(__name__)
@@ -201,8 +202,12 @@ async def _fetch_one(source, query: str, days: int, limit: int,
                      timeout: float = 90) -> tuple[list[Row], SourceReport]:
     if not source.available():
         return [], SourceReport(source=source.name, status="gated_off")
+    # Adapt the raw query to this source's matching semantics: literal-AND /
+    # keyword-slot sources collapse a verbose question to its core subject,
+    # semantic sources pass through. See query_core for the policy.
+    q = adapt_query(source.name, query)
     try:
-        rows = await asyncio.wait_for(source.fetch(query, days, limit), timeout=timeout)
+        rows = await asyncio.wait_for(source.fetch(q, days, limit), timeout=timeout)
         status = "ok" if rows else "no_results"
         return rows, SourceReport(source=source.name, status=status, count=len(rows))
     except Exception as e:  # noqa: BLE001
