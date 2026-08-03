@@ -20,6 +20,26 @@ def _chat_url(settings: Settings) -> str:
     return base + "/chat/completions"
 
 
+def _fail_hint(e: Exception, settings: Settings) -> str:
+    """Turn a synthesis exception into an actionable hint.
+
+    Keeps `brief` failures informative without ever touching the raw items —
+    the tool still "succeeds" and the caller just sees why the brief is a
+    placeholder. The recurring config mistake is a base URL missing its /v1
+    version path, which surfaces as a 404 from the gateway.
+    """
+    reason = " ".join(str(e).split())[:200]
+    parts = [f"Synthesis failed ({type(e).__name__}): {reason}."]
+    base = settings.openai_base_url.rstrip("/")
+    if base and not re.search(r"/v\d+(?:/beta)?$", base):
+        parts.append(
+            f" Hint: OPENAI_BASE_URL {settings.openai_base_url!r} looks missing "
+            f"its version path — it should end in /v1 (e.g. https://your-gateway/v1)."
+        )
+    parts.append("Raw items below are unaffected.")
+    return "".join(parts)
+
+
 async def _chat(messages: list[dict], model: str, settings: Settings) -> str:
     if not settings.openai_api_key:
         return ""
@@ -48,19 +68,19 @@ async def rerank(query: str, items: list[Item], settings: Settings) -> list[Item
     try:
         content = await _chat([{"role": "user", "content": prompt}],
                               settings.rerank_model, settings)
-        order = [int(x) for x in re.findall(r"\d+", content)]
-        seen, ordered = set(), []
-        for idx in order:
-            if 0 <= idx < len(top) and idx not in seen:
-                ordered.append(top[idx])
-                seen.add(idx)
-        for i, it in enumerate(top):
-            if i not in seen:
-                ordered.append(it)
-        return ordered + items[_TOP_N:]
     except Exception:  # noqa: BLE001
         log.warning("rerank failed; keeping input order", exc_info=True)
         return items
+    order = [int(x) for x in re.findall(r"\d+", content)]
+    seen, ordered = set(), []
+    for idx in order:
+        if 0 <= idx < len(top) and idx not in seen:
+            ordered.append(top[idx])
+            seen.add(idx)
+    for i, it in enumerate(top):
+        if i not in seen:
+            ordered.append(it)
+    return ordered + items[_TOP_N:]
 
 
 async def brief(query: str, items: list[Item], settings: Settings) -> str:
@@ -78,4 +98,4 @@ async def brief(query: str, items: list[Item], settings: Settings) -> str:
                            settings.brief_model, settings)
     except Exception as e:  # noqa: BLE001
         log.warning("brief failed: %s", e, exc_info=True)
-        return f"Synthesis failed: {e}. See returned items."
+        return _fail_hint(e, settings)

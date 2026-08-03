@@ -200,7 +200,7 @@ All config is environment variables (a `Settings` dataclass). Everything is opti
 
 ```bash
 # ===== LLM (rerank + brief) =====
-OPENAI_BASE_URL="https://your-gateway/v1"    # OpenAI-compatible gateway base URL
+OPENAI_BASE_URL="https://your-gateway/v1"    # include /v1; default https://api.openai.com/v1
 OPENAI_API_KEY="sk-..."                      # API key for rerank + brief
 REACH_MCP_RERANK_MODEL="gemini-flash-lite"   # model for reranking (default: gemini-flash-lite)
 REACH_MCP_BRIEF_MODEL="gemini-flash-lite"    # model for brief synthesis (default: gemini-flash-lite)
@@ -425,7 +425,7 @@ If you're coming from the `last30days` MCP server (mvanhorn/last30days-skill), h
 | `BRAVE_API_KEY` | `SEARXNG_URL` | reach-mcp uses Searxng instead of Brave (free tier removed 2026) |
 | `INCLUDE_SOURCES` | *(removed)* | Use `sources=[...]` per search call; no global include list |
 | `LAST30DAYS_SEARXNG_URL` | `SEARXNG_URL` | Same purpose, shorter name |
-| `OPENAI_BASE_URL` | `OPENAI_BASE_URL` | Same, but reach-mcp appends `/chat/completions` (don't include `/v1/responses`) |
+| `OPENAI_BASE_URL` | `OPENAI_BASE_URL` | Same — include the version path (`.../v1`); reach-mcp appends `/chat/completions`. Defaults to `https://api.openai.com/v1`. If the brief fails, the hint flags a missing `/v1` and raw items are still returned |
 | `OPENAI_API_KEY` | `OPENAI_API_KEY` | Same |
 | `GH_TOKEN` | `GH_TOKEN` | Same |
 | `AUTH_TOKEN`, `CT0` | `AUTH_TOKEN`, `CT0` | Same |

@@ -54,7 +54,9 @@ class Settings:
     )
     allowed_hosts: tuple[str, ...] = field(default_factory=_parse_allowed_hosts)
 
-    openai_base_url: str = field(default_factory=lambda: _env("OPENAI_BASE_URL"))
+    openai_base_url: str = field(
+        default_factory=lambda: _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    )
     openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY"))
     rerank_model: str = field(default_factory=lambda: _env("REACH_MCP_RERANK_MODEL", "gemini-flash-lite"))
     brief_model: str = field(default_factory=lambda: _env("REACH_MCP_BRIEF_MODEL", "gemini-flash-lite"))
