@@ -133,3 +133,9 @@ def test_render_summary_groups_empty_and_shows_counts():
     assert "EMPTY: rss, v2ex" in s  # silent merged on one line
     assert "QUOTA: tiktok(" in s and "limit" in s  # quota with reason
     assert "ERRORS: digg(" in s
+
+
+def test_weibo_zhihu_in_social_category():
+    """CN sources (2026-08): weibo full search, zhihu hot-list — both social."""
+    assert "weibo" in CATEGORIES["social"]
+    assert "zhihu" in CATEGORIES["social"]
