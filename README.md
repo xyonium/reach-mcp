@@ -43,6 +43,8 @@
 | | `bilibili` | bili-cli (preferred) / public API fallback | none (install `bili` for stability) |
 | | `xiaoyuzhou` | public API | `XIAOYUZHOU_ACCESS_TOKEN` (login); `WHISPER_BASE_URL` (for `fetch_content` transcription) |
 | | `xiaohongshu` | xiaohongshu-mcp companion | `XHS_MCP_URL` |
+| | `weibo` | mobile API (m.weibo.cn) + auto visitor cookies | none |
+| | `zhihu` | 热榜 hot list via mobile API (api.zhihu.com) | none |
 | **Login-gated** *(off by default)* | `x` | cookies | `AUTH_TOKEN`/`CT0` |
 | | `truthsocial` | Mastodon API | `TRUTHSOCIAL_TOKEN` |
 | | `linkedin` | Apify (public posts) + Searxng fallback + ScrapeCreators (optional) | `APIFY_API_TOKEN` ($5/mo); `SEARXNG_URL` for fallback; `SCRAPECREATORS_API_KEY` optional |
@@ -88,7 +90,7 @@ often return `[]` — the backend isn't broken, the query is too specific.
 **Description:**
 > Search up to 25 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
 >
-> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web; it: github, hackernews, v2ex, rss, arxiv, dripstack; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
+> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, weibo, zhihu; it: github, hackernews, v2ex, rss, arxiv, dripstack; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
 >
 > Returns `{brief, items, sources_used, source_summary, available_sources}`. Each item: `{source, title, url, author, date, score, engagement, text}`. source_summary is one compact line per outcome -- 'x:3; reddit:5 | EMPTY: rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429)'; 'gated_off' means its credential env isn't set. Match query language to platform -- Chinese keywords work best for the CN sources. Call list_sources if unsure what's configured.
 
@@ -368,6 +370,18 @@ npx @modelcontextprotocol/inspector      # MCP Inspector
 Notes: open the App *before* scanning (the QR expires quickly); don't log the same account in elsewhere on the web — 小红书 single-logs-in, a web login kicks the MCP account out. Cookies persist in the `./data` volume.
 
 **Without Docker:** Download the binary from [releases](https://github.com/xpzouying/xiaohongshu-mcp/releases). Login is the same QR flow via the MCP `login` tool (or `go run cmd/login/main.go` from source), then start the server and set `XHS_MCP_URL=http://localhost:18060/mcp`.
+
+#### Weibo / 微博 (no credentials)
+
+Free, zero-config. Two-step pure-HTTP flow against the mobile realm (curl-verified 2026-08): `visitor.passport.weibo.cn/visitor/genvisitor2` mints SUB/SUBP visitor cookies in one call, then `m.weibo.cn/api/container/getIndex` returns real search results (text/author/interactions). Cookies are cached module-level and auto-regenerated on auth failure (`ok:-100`). The desktop site (s.weibo.com) needs JS fingerprinting and is NOT used.
+
+#### Zhihu / 知乎 (no credentials)
+
+Hot-list browse via the mobile API host `api.zhihu.com/topstory/hot-lists/total` — the only unauthenticated Zhihu surface (the desktop host WAFs everything; search/question APIs need the `x-zse-96` signature + login). The source fetches the top-30 热榜, filters by query keywords, and degrades to the unfiltered hot list when nothing matches. Full Zhihu search would require a logged-in cookie + signature implementation.
+
+#### WeChat articles / 微信公众号 (no new source)
+
+WeChat MP articles are already searchable through the existing `web` source: Searxng indexes them — `site:mp.weixin.qq.com <keywords>` returns real article URLs (verified 2026-08, 17 results for 人工智能). No dedicated source is needed.
 
 #### Web search (`SEARXNG_URL`)
 
