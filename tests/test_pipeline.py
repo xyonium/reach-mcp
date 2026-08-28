@@ -235,3 +235,33 @@ async def test_run_trending_skips_non_trending_sources():
         assert reports[0].status == "skipped"
     finally:
         del pl.SOURCES["stub_notrend"]
+
+
+@pytest.mark.asyncio
+async def test_run_trending_runs_gated_search_sources(monkeypatch):
+    """A login-gated source (x) whose trending backend is keyless must still
+    run in trending mode — available() gates search, not trending."""
+    from unittest.mock import AsyncMock
+
+    import reach_mcp.pipeline as pl
+
+    class _Gated(Source):
+        name = "stub_gated_trend"
+        required_env = ("DEFINITELY_UNSET_VAR",)
+        supports_trending = True
+
+        async def fetch(self, query, days, limit):
+            return []
+
+        async def fetch_trending(self, limit):
+            return [Row(source="x", id="t1", title="trend", url="https://x.com/q")]
+
+    monkeypatch.delenv("DEFINITELY_UNSET_VAR", raising=False)
+    pl.SOURCES["stub_gated_trend"] = _Gated()
+    try:
+        items, reports = await pl.run_trending(["stub_gated_trend"], 5, AsyncMock())
+        assert not pl.SOURCES["stub_gated_trend"].available()  # search would gate
+        assert items and items[0].title == "trend"  # trending still ran
+        assert reports[0].status == "ok"
+    finally:
+        del pl.SOURCES["stub_gated_trend"]

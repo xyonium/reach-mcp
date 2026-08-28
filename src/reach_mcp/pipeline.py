@@ -375,8 +375,10 @@ async def run_trending(
                 targets.append(s)
 
     async def _trending_one(s) -> tuple[list[Row], SourceReport]:
-        if not s.available():
-            return [], SourceReport(source=s.name, status="gated_off")
+        # NOTE: no `available()` gate here on purpose — some trending backends
+        # are keyless even when the source's search is login-gated (x trends via
+        # trends24.in needs no AUTH_TOKEN). fetch_trending failures surface as
+        # errored/no_results reports instead.
         s.last_notice = None
         try:
             rows = await asyncio.wait_for(s.fetch_trending(max_per_source), timeout=90)

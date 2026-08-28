@@ -55,7 +55,9 @@ _SEARCH_DESC = (
     "there is no dedicated wechat source.\n\n"
     "TRENDING (热搜/热榜): set trending=true to fetch what's hot RIGHT NOW "
     "instead of searching — weibo 实时热搜 (with heat values), zhihu 热榜, "
-    "hackernews front page, bilibili 综合热门 ranking. `query` is IGNORED in "
+    "hackernews front page, bilibili 综合热门 ranking, x/X trends (via the "
+    "trends24 mirror — works WITHOUT the x login cookies), and github "
+    "newly-hot repos (created this week, sorted by stars). `query` is IGNORED in "
     'this mode (pass ""); `sources` still scopes (e.g. sources=["weibo"]). '
     "Use it for 'what's trending on weibo', '今日热搜', or to seed a topic "
     "before a keyword search.\n\n"

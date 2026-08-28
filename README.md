@@ -124,12 +124,16 @@ often return `[]` — the backend isn't broken, the query is too specific.
    -- or --
    search("OpenAI vs Anthropic",
           days=30, synthesize=true)          # one call → cited brief + rows
+   -- or --
+   search("", trending=true,
+          sources=["weibo"])              # hot lists, not keyword search
 3. (optional) synthesize(query, items)     # re-brief the rows you already have
 ```
 
 - **Default** (`sources=None`, `category=None`, `synthesize=true`): searches every configured source EXCEPT podcast (opt-in), auto-backfills full content for the top rich-media items, and returns a cited brief + all rows. Simplest.
 - **By type** (`category=["tech"]`): one keyword scopes to a topic group (social / it / tech / polec / podcast) -- the easiest way to match the sources to the kind of query. Categories overlap; several union together.
 - **Targeted** (`sources=[...]`): only hit what you need -- faster, cheaper, less noise. Combines with `category` (union).
+- **Trending** (`trending=true`): query-free hot lists -- weibo 实时热搜 (heat values, no login), zhihu 热榜, hackernews front page, bilibili 综合热门, x/X trends (trends24 mirror, no login), github newly-hot repos (created this week, sorted by stars). `query` is ignored; `sources` scopes. Use for "what's hot on weibo right now" / "今日热搜". Non-trending sources you name come back as `skipped`.
 - **Raw** (`synthesize=false`): metadata + snippets only, no backfill -- fast. Read the rows, then `fetch_content(source, id_or_url)` on the ones worth full text, and `synthesize(query, items)` to re-brief.
 - **Podcast** (`category=["podcast"]` or `sources=["xiaoyuzhou"]`): opt-in because transcription is slow (minutes per episode) -- enable only when you actually need podcasts.
 - Rich-media sources (xiaoyuzhou/youtube/bilibili) are metadata-only at search time; their transcripts/captions come from `fetch_content` (or the synthesize=true auto-backfill).
