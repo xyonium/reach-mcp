@@ -1,9 +1,11 @@
-"""TikTok via Apify (primary, free $5/mo) + ScrapeCreators (fallback, one-time)
-+ OpenCLI (optional desktop free).
+"""TikTok via playwright in-page fetch (free primary) + Apify (paid fallback)
++ ScrapeCreators (one-time) + OpenCLI (optional desktop free).
 
-Priority: Apify (server-side, recurring free credits) -> OpenCLI (if on PATH,
-desktop) -> ScrapeCreators (one-time credits). First backend with a configured
-credential/CLI wins.
+Priority: playwright (free/unlimited — headless browser per search, closed
+immediately after) -> Apify (server-side, recurring free credits) -> OpenCLI
+(if on PATH, desktop) -> ScrapeCreators (one-time credits). playwright needs
+`pip install playwright && playwright install chromium` in the deployment; it
+degrades to a no-op [] when absent.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from reach_mcp.sources._apify import fetch_tiktok as _apify_fetch
 from reach_mcp.sources._opencli import cli_search
 from reach_mcp.sources._opencli import has_cli as _has_opencli
 from reach_mcp.sources._scrapecreators import scrape_search
+from reach_mcp.sources._tiktok_playwright import fetch as _pw_fetch
 from reach_mcp.sources.base import Row, Source, get_client, register_source
 
 
@@ -21,8 +24,9 @@ from reach_mcp.sources.base import Row, Source, get_client, register_source
 class TikTok(Source):
     name = "tiktok"
     description = (
-        "TikTok via Apify (free $5/mo; APIFY_API_TOKEN) or OpenCLI (desktop, "
-        "free) or ScrapeCreators (100 one-time credits; SCRAPECREATORS_API_KEY)."
+        "TikTok via free in-browser fetch (playwright+chromium, if installed) "
+        "or Apify (APIFY_API_TOKEN) or OpenCLI (desktop) or ScrapeCreators "
+        "(SCRAPECREATORS_API_KEY)."
     )
     host = "api.scrapecreators.com"
     needs_auth = True
@@ -36,6 +40,11 @@ class TikTok(Source):
         )
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
+        # Free playwright backend first (per-call browser lifecycle); [] when
+        # uninstalled or blocked -> fall through to the paid backends.
+        rows = await _pw_fetch(query, limit)
+        if rows:
+            return rows
         if os.environ.get("APIFY_API_TOKEN", "").strip():
             return await _apify_fetch(query, limit)
         if _has_opencli():
