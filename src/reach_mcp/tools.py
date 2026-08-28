@@ -43,7 +43,7 @@ _SEARCH_DESC = (
     "(xiaoyuzhou is opt-in: episode transcription is slow, request it "
     "explicitly when you need podcasts).\n\n"
     "QUERY STYLE: write a short keyword query, not a full question. Literal "
-    "keyword-AND sources (x, threads) match every word — 2-5 content words, no "
+    "keyword-AND sources (x, threads via Apify) match every word — 2-5 content words, no "
     "'latest/news/how-to' filler. Keyword-slot sources (bluesky, tiktok, "
     "instagram, pinterest, linkedin, quora, xiaohongshu, weibo) take a compact "
     "phrase. Semantic sources (reddit, web, arxiv, github, hackernews, youtube, "
