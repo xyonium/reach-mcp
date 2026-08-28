@@ -7,6 +7,7 @@ substring on title or summary). Opt-in: off unless RSS_FEEDS is set.
 This mirrors Agent Reach's rss channel (free, keyless) adapted to reach-mcp's
 search(query, days, limit) signature.
 """
+
 from __future__ import annotations
 
 import os
@@ -31,6 +32,7 @@ def _within_days(date_str: str | None, days: int) -> bool:
             return True
         # feedparser returns naive local time tuples in some cases; use parsed
         import time as _time
+
         ts = _time.mktime(dt) if isinstance(dt, _time.struct_time) else None
         if ts is None:
             return True
@@ -71,14 +73,18 @@ class Rss(Source):
                     continue
                 if not _within_days(e.get("published"), days):
                     continue
-                rows.append(Row(
-                    source="rss", id=e.get("id") or e.get("link") or title,
-                    title=title, url=e.get("link") or "",
-                    author=e.get("author"),
-                    date=e.get("published") or e.get("updated"),
-                    engagement={},
-                    text=snip(summary),
-                ))
+                rows.append(
+                    Row(
+                        source="rss",
+                        id=e.get("id") or e.get("link") or title,
+                        title=title,
+                        url=e.get("link") or "",
+                        author=e.get("author"),
+                        date=e.get("published") or e.get("updated"),
+                        engagement={},
+                        text=snip(summary),
+                    )
+                )
                 if len(rows) >= limit:
                     break
             if len(rows) >= limit:

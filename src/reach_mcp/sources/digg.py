@@ -4,6 +4,7 @@ Detected on PATH -> available; absent -> gated off. The CLI is built by the
 operator (see last30days' build steps). reach-mcp does NOT vendor the Go
 toolchain — it only shells out if the binary exists.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -33,9 +34,16 @@ class Digg(Source):
             return []
         try:
             proc = await asyncio.create_subprocess_exec(
-                "digg-pp-cli", "search", query, "--since", f"{days}d",
-                "--agent", "--limit", str(limit),
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                "digg-pp-cli",
+                "search",
+                query,
+                "--since",
+                f"{days}d",
+                "--agent",
+                "--limit",
+                str(limit),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
         except Exception:  # noqa: BLE001
@@ -47,12 +55,17 @@ class Digg(Source):
         rows: list[Row] = []
         clusters = data if isinstance(data, list) else data.get("clusters") or []
         for i, c in enumerate(clusters):
-            title = c.get("title") or f"Digg cluster {i+1}"
-            rows.append(Row(
-                source="digg", id=str(c.get("clusterUrlId") or i),
-                title=title, url=c.get("url") or "",
-                author=None, date=c.get("firstPostAge"),
-                engagement={"rank": c.get("rank") or 0},
-                text=snip(c.get("summary") or ""),
-            ))
+            title = c.get("title") or f"Digg cluster {i + 1}"
+            rows.append(
+                Row(
+                    source="digg",
+                    id=str(c.get("clusterUrlId") or i),
+                    title=title,
+                    url=c.get("url") or "",
+                    author=None,
+                    date=c.get("firstPostAge"),
+                    engagement={"rank": c.get("rank") or 0},
+                    text=snip(c.get("summary") or ""),
+                )
+            )
         return rows

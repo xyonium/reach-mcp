@@ -5,6 +5,7 @@ generic/browser UAs, but passes urllib with the last30days skill UA. So this
 source uses stdlib urllib (mirroring last30days) rather than PoliteClient.
 Content is HTML; strip tags like last30days does.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,11 +30,14 @@ def _fetch_sync(query: str, limit: int) -> list[dict]:
         return []
     params = urlencode({"q": query, "type": "statuses", "limit": str(min(limit, 40))})
     url = f"https://truthsocial.com/api/v2/search?{params}"
-    req = Request(url, headers={
-        "Authorization": f"Bearer {token}",
-        # Cloudflare passes this UA + urllib TLS, blocks httpx/generic.
-        "User-Agent": "last30days-skill/3.0 (Assistant Skill)",
-    })
+    req = Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            # Cloudflare passes this UA + urllib TLS, blocks httpx/generic.
+            "User-Agent": "last30days-skill/3.0 (Assistant Skill)",
+        },
+    )
     try:
         with urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode("utf-8"))
@@ -59,14 +63,20 @@ class TruthSocial(Source):
         for s in statuses:
             acct = (s.get("account") or {}).get("username")
             content = _strip_html(s.get("content") or "")
-            rows.append(Row(
-                source="truthsocial", id=s.get("id") or "",
-                title=content[:120],
-                url=s.get("url") or f"https://truthsocial.com/@{acct}/{s.get('id')}",
-                author=acct, date=s.get("created_at"),
-                engagement={"likes": s.get("favourites_count") or 0,
-                            "reblogs": s.get("reblogs_count") or 0,
-                            "replies": s.get("replies_count") or 0},
-                text=content,
-            ))
+            rows.append(
+                Row(
+                    source="truthsocial",
+                    id=s.get("id") or "",
+                    title=content[:120],
+                    url=s.get("url") or f"https://truthsocial.com/@{acct}/{s.get('id')}",
+                    author=acct,
+                    date=s.get("created_at"),
+                    engagement={
+                        "likes": s.get("favourites_count") or 0,
+                        "reblogs": s.get("reblogs_count") or 0,
+                        "replies": s.get("replies_count") or 0,
+                    },
+                    text=content,
+                )
+            )
         return rows

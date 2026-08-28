@@ -5,6 +5,7 @@ by importing every module in this package. This keeps tests and entry points sim
 — no explicit import_all_sources() needed — while still failing gracefully if one
 module errors at import.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -42,6 +43,7 @@ def _ensure_loaded() -> None:
         return
     _LOADED = True
     import reach_mcp.sources as _pkg
+
     for mod in pkgutil.iter_modules(_pkg.__path__):
         if mod.name in {"base", "__init__"} or mod.name.startswith("_"):
             continue
@@ -67,7 +69,16 @@ def available_sources() -> list[str]:
 
 
 __all__ = [
-    "SOURCES", "Item", "Row", "Source",
-    "available_sources", "get_client", "get_source", "list_sources",
-    "register_source", "set_client", "set_snippet_len", "snip",
+    "SOURCES",
+    "Item",
+    "Row",
+    "Source",
+    "available_sources",
+    "get_client",
+    "get_source",
+    "list_sources",
+    "register_source",
+    "set_client",
+    "set_snippet_len",
+    "snip",
 ]

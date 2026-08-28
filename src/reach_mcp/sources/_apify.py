@@ -17,6 +17,7 @@ Endpoint: POST https://api.apify.com/v2/acts/{actorId}/run-sync-get-dataset-item
   - response body is the dataset items array (JSON)
   - the run blocks until the Actor finishes (timeout via ?timeout=<sec>)
 """
+
 from __future__ import annotations
 
 import json
@@ -26,6 +27,7 @@ import os
 from reach_mcp.sources.base import Row, get_client, snip
 
 log = logging.getLogger(__name__)
+
 
 def _api_base() -> str:
     """Apify API base. APIFY_BASE_URL overrides for key-rotator/proxy gateways
@@ -61,10 +63,7 @@ async def run_actor_sync(actor_id: str, run_input: dict) -> list[dict]:
     # Apify's run-sync endpoint requires the tilde actor form (username~actor),
     # NOT the slash form — the slash form returns 404 page-not-found.
     tilde_id = actor_id.replace("/", "~")
-    url = (
-        f"{_api_base()}/v2/acts/{tilde_id}"
-        f"/run-sync-get-dataset-items?token={token}&timeout=120"
-    )
+    url = f"{_api_base()}/v2/acts/{tilde_id}/run-sync-get-dataset-items?token={token}&timeout=120"
     # PoliteClient only does GET via get_json/get_text; use its underlying
     # httpx client for the POST with a JSON body.
     resp = await client._client.post(  # noqa: SLF001
@@ -79,9 +78,7 @@ async def run_actor_sync(actor_id: str, run_input: dict) -> list[dict]:
     # run-sync-get-dataset-items returns 201 Created when it completes with
     # items in the body (2xx is success; 200/201 both carry the dataset).
     if not (200 <= resp.status_code < 300):
-        raise RuntimeError(
-            f"apify {actor_id}: HTTP {resp.status_code} — {resp.text[:200]}"
-        )
+        raise RuntimeError(f"apify {actor_id}: HTTP {resp.status_code} — {resp.text[:200]}")
     data = resp.json()
     # run-sync-get-dataset-items returns the items array directly
     if isinstance(data, list):
@@ -116,12 +113,26 @@ def _str_field(item: dict, *keys: str) -> str:
 def _to_row(item: dict, source: str) -> Row:
     """Normalize an Apify item into a Row. Field names vary per actor, so we
     try common aliases (including dotted paths) for each attribute."""
-    text = (item.get("text") or item.get("caption") or item.get("description")
-            or item.get("textContent") or "")
+    text = (
+        item.get("text")
+        or item.get("caption")
+        or item.get("description")
+        or item.get("textContent")
+        or ""
+    )
     url = _str_field(item, "url", "permalinkUrl", "link", "postUrl", "webVideoUrl")
-    author = (_str_field(item, "authorMeta.username", "authorUsername",
-                         "ownerUsername", "author", "username", "authorMeta.name")
-              or None)
+    author = (
+        _str_field(
+            item,
+            "authorMeta.username",
+            "authorUsername",
+            "ownerUsername",
+            "author",
+            "username",
+            "authorMeta.name",
+        )
+        or None
+    )
     return Row(
         source=source,
         id=_str_field(item, "id", "postId", "shortCode", "videoId"),
@@ -132,8 +143,7 @@ def _to_row(item: dict, source: str) -> Row:
         engagement={
             "likes": item.get("likesCount") or item.get("likes") or 0,
             "comments": item.get("commentsCount") or item.get("comments") or 0,
-            "views": item.get("playCount") or item.get("videoViewCount")
-            or item.get("views") or 0,
+            "views": item.get("playCount") or item.get("videoViewCount") or item.get("views") or 0,
             "shares": item.get("shares") or item.get("shareCount") or 0,
         },
         text=snip(text),
@@ -146,20 +156,26 @@ async def fetch_threads(query: str, limit: int) -> list[Row]:
     Actor verified 2026-08: mode=search + keywords[] returns posts; max_posts
     is capped at a minimum of 10 by the actor.
     """
-    items = await run_actor_sync("futurizerush/meta-threads-scraper", {
-        "mode": "search",
-        "keywords": [query],
-        "max_posts": max(10, min(limit, 50)),
-    })
+    items = await run_actor_sync(
+        "futurizerush/meta-threads-scraper",
+        {
+            "mode": "search",
+            "keywords": [query],
+            "max_posts": max(10, min(limit, 50)),
+        },
+    )
     return [_to_row_threads(it) for it in items[:limit]]
 
 
 async def fetch_tiktok(query: str, limit: int) -> list[Row]:
-    items = await run_actor_sync("clockworks/tiktok-scraper", {
-        "searchQueries": [query],
-        "resultsPerPage": min(limit, 30),
-        "searchSection": "/video",
-    })
+    items = await run_actor_sync(
+        "clockworks/tiktok-scraper",
+        {
+            "searchQueries": [query],
+            "resultsPerPage": min(limit, 30),
+            "searchSection": "/video",
+        },
+    )
     return [_to_row(it, "tiktok") for it in items[:limit]]
 
 
@@ -169,11 +185,14 @@ async def fetch_instagram(query: str, limit: int) -> list[Row]:
     Actor uses a single `search` string + `searchType` (place/user/hashtag/
     popular) + `searchLimit`. Returns hashtag/search-result records, not posts.
     """
-    items = await run_actor_sync("apify/instagram-search-scraper", {
-        "search": query,
-        "searchType": "hashtag",
-        "searchLimit": min(limit, 30),
-    })
+    items = await run_actor_sync(
+        "apify/instagram-search-scraper",
+        {
+            "search": query,
+            "searchType": "hashtag",
+            "searchLimit": min(limit, 30),
+        },
+    )
     return [_to_row_instagram(it) for it in items[:limit]]
 
 
@@ -184,10 +203,13 @@ async def fetch_pinterest(query: str, limit: int) -> list[Row]:
     description/title/saves. Result dicts carry pin fields (id, title,
     description, url, imageUrl, saves, pinnerUsername).
     """
-    items = await run_actor_sync("automation-lab/pinterest-scraper", {
-        "searchQueries": [query],
-        "maxItems": min(limit, 30),
-    })
+    items = await run_actor_sync(
+        "automation-lab/pinterest-scraper",
+        {
+            "searchQueries": [query],
+            "maxItems": min(limit, 30),
+        },
+    )
     return [_to_row_pinterest(it) for it in items[:limit]]
 
 
@@ -202,11 +224,13 @@ async def fetch_linkedin_posts(query: str, limit: int) -> list[Row]:
     s.jina.ai burns one-time tokens.
     """
     items = await run_actor_sync(
-        "apimaestro/linkedin-posts-search-scraper-no-cookies", {
+        "apimaestro/linkedin-posts-search-scraper-no-cookies",
+        {
             "keyword": query,
             "limit": min(limit, 50),
             "sort_type": "relevance",
-        })
+        },
+    )
     return [_to_row_linkedin(it) for it in items[:limit]]
 
 
@@ -216,10 +240,13 @@ async def fetch_quora(query: str, limit: int) -> list[Row]:
     Actor verified 2026-08: searchQueries[] + maxResults returns questions and
     answers with engagement (upvotes, comments, views). No login/cookies.
     """
-    items = await run_actor_sync("api-empire/quora-search-scraper", {
-        "searchQueries": [query],
-        "maxResults": min(limit, 30),
-    })
+    items = await run_actor_sync(
+        "api-empire/quora-search-scraper",
+        {
+            "searchQueries": [query],
+            "maxResults": min(limit, 30),
+        },
+    )
     return [_to_row_quora(it) for it in items[:limit]]
 
 
@@ -232,9 +259,14 @@ def _to_row_quora(item: dict) -> Row:
     vary between question and answer records.
     """
     # An answer record carries its parent question as the title context.
-    title = (item.get("question") or item.get("title") or item.get("question_title") or "")
-    text = (item.get("answer") or item.get("text") or item.get("content")
-            or item.get("answer_text") or "")
+    title = item.get("question") or item.get("title") or item.get("question_title") or ""
+    text = (
+        item.get("answer")
+        or item.get("text")
+        or item.get("content")
+        or item.get("answer_text")
+        or ""
+    )
     url = _str_field(item, "url", "question_url", "answer_url", "link", "permalink")
     return Row(
         source="quora",
@@ -251,6 +283,8 @@ def _to_row_quora(item: dict) -> Row:
         },
         text=snip(text),
     )
+
+
 def _to_row_linkedin(item: dict) -> Row:
     """Normalize an apimaestro linkedin-posts item into a Row.
 
@@ -258,10 +292,9 @@ def _to_row_linkedin(item: dict) -> Row:
     author_url, posted_at/date, likes/num_likes, comments/num_comments,
     reposts/num_reposts}. Field aliases vary between actor versions.
     """
-    text = (item.get("text") or item.get("content") or item.get("post_text") or "")
+    text = item.get("text") or item.get("content") or item.get("post_text") or ""
     url = _str_field(item, "post_url", "url", "postUrl", "link", "permalink")
-    author = (_str_field(item, "author", "author_name", "name", "profile_name")
-              or None)
+    author = _str_field(item, "author", "author_name", "name", "profile_name") or None
     return Row(
         source="linkedin",
         id=_str_field(item, "id", "post_id", "urn") or url,
@@ -295,8 +328,7 @@ def _to_row_pinterest(item: dict) -> Row:
         url=item.get("url") or "",
         author=_str_field(item, "pinnerUsername", "pinnerName"),
         date=None,
-        engagement={"saves": item.get("saves") or 0,
-                    "followers": item.get("pinnerFollowers") or 0},
+        engagement={"saves": item.get("saves") or 0, "followers": item.get("pinnerFollowers") or 0},
         text=snip(text),
     )
 
@@ -307,7 +339,7 @@ def _to_row_threads(item: dict) -> Row:
     Post shape: {record_type, post_url, post_code, text_content, created_at,
     like_count, reply_count, repost_count, quote_count, share_count, ...}
     """
-    text = (item.get("text_content") or item.get("caption") or "")
+    text = item.get("text_content") or item.get("caption") or ""
     return Row(
         source="threads",
         id=str(item.get("post_code") or item.get("id") or ""),
@@ -345,9 +377,14 @@ def _to_row_instagram(item: dict) -> Row:
 
 
 __all__ = [
-    "has_token", "run_actor_sync",
-    "fetch_threads", "fetch_tiktok", "fetch_instagram", "fetch_pinterest",
-    "fetch_linkedin_posts", "fetch_quora",
+    "has_token",
+    "run_actor_sync",
+    "fetch_threads",
+    "fetch_tiktok",
+    "fetch_instagram",
+    "fetch_pinterest",
+    "fetch_linkedin_posts",
+    "fetch_quora",
 ]
 # keep json import referenced for clarity (used by callers if needed)
 _ = json

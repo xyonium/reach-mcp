@@ -64,13 +64,34 @@ async def test_fetch_content_failure_returns_not_ok(monkeypatch):
 
 def _rich_items():
     return [
-        Item(source="youtube", id="y1", title="vid", url="https://youtu.be/y1",
-             engagement={}, text="desc snippet", score=0.9),
-        Item(source="xiaoyuzhou", id="x1", title="pod", url="https://xyz.fm/e1",
-             engagement={}, text="shownotes snippet", score=0.8,
-             audio_url="https://media.xyzcdn.net/e1.m4a"),
-        Item(source="reddit", id="r1", title="post", url="https://redd.it/r1",
-             engagement={}, text="post body", score=0.95),
+        Item(
+            source="youtube",
+            id="y1",
+            title="vid",
+            url="https://youtu.be/y1",
+            engagement={},
+            text="desc snippet",
+            score=0.9,
+        ),
+        Item(
+            source="xiaoyuzhou",
+            id="x1",
+            title="pod",
+            url="https://xyz.fm/e1",
+            engagement={},
+            text="shownotes snippet",
+            score=0.8,
+            audio_url="https://media.xyzcdn.net/e1.m4a",
+        ),
+        Item(
+            source="reddit",
+            id="r1",
+            title="post",
+            url="https://redd.it/r1",
+            engagement={},
+            text="post body",
+            score=0.95,
+        ),
     ]
 
 

@@ -4,6 +4,7 @@ The old search endpoint (/api/topics/search.json) was removed upstream, so we
 use /api/topics/latest.json and filter by the query in title/content. Degraded
 but functional.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -14,7 +15,9 @@ from reach_mcp.sources.base import Row, Source, get_client, register_source, sni
 @register_source
 class V2EX(Source):
     name = "v2ex"
-    description = "V2EX latest topics filtered by query (public API; search endpoint removed upstream)."
+    description = (
+        "V2EX latest topics filtered by query (public API; search endpoint removed upstream)."
+    )
     host = "www.v2ex.com"
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
@@ -33,13 +36,18 @@ class V2EX(Source):
             ts = t.get("created")
             date = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() if ts else None
             member = t.get("member") or {}
-            rows.append(Row(
-                source="v2ex", id=str(t.get("id", "")),
-                title=title, url=t.get("url") or "",
-                author=member.get("username"), date=date,
-                engagement={"replies": t.get("replies") or 0},
-                text=snip(content),
-            ))
+            rows.append(
+                Row(
+                    source="v2ex",
+                    id=str(t.get("id", "")),
+                    title=title,
+                    url=t.get("url") or "",
+                    author=member.get("username"),
+                    date=date,
+                    engagement={"replies": t.get("replies") or 0},
+                    text=snip(content),
+                )
+            )
             if len(rows) >= limit:
                 break
         return rows

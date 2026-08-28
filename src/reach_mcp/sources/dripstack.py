@@ -7,6 +7,7 @@ Indexes Substack-style analyst write-ups; returns metadata + snippets
 Complements the finance cluster: stocktwits = retail sentiment,
 polymarket = real-money odds, dripstack = professional analyst/newsletter takes.
 """
+
 from __future__ import annotations
 
 import re
@@ -47,18 +48,32 @@ class Dripstack(Source):
             pub = item.get("publicationSlug") or ""
             url = item.get("url") or item.get("link") or ""
             if not url and slug:
-                url = f"https://dripstack.xyz/{pub}/{slug}" if pub else f"https://dripstack.xyz/{slug}"
-            snippet = (item.get("subtitle") or item.get("snippet")
-                       or item.get("summary") or item.get("whyMatched") or "")
+                url = (
+                    f"https://dripstack.xyz/{pub}/{slug}"
+                    if pub
+                    else f"https://dripstack.xyz/{slug}"
+                )
+            snippet = (
+                item.get("subtitle")
+                or item.get("snippet")
+                or item.get("summary")
+                or item.get("whyMatched")
+                or ""
+            )
             # strip HTML tags from snippet if present
             text = re.sub(r"<[^>]+>", "", snippet) if snippet else ""
-            rows.append(Row(
-                source="dripstack", id=url or title,
-                title=title[:200], url=url,
-                author=item.get("author") or item.get("newsletter"),
-                date=item.get("publishedAt") or item.get("date"),
-                engagement={"relevance": item.get("relevanceScore")
-                            or item.get("matchConfidence") or 0},
-                text=snip(text),
-            ))
+            rows.append(
+                Row(
+                    source="dripstack",
+                    id=url or title,
+                    title=title[:200],
+                    url=url,
+                    author=item.get("author") or item.get("newsletter"),
+                    date=item.get("publishedAt") or item.get("date"),
+                    engagement={
+                        "relevance": item.get("relevanceScore") or item.get("matchConfidence") or 0
+                    },
+                    text=snip(text),
+                )
+            )
         return rows

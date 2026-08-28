@@ -1,4 +1,5 @@
 """Assemble the app: reach_* MCP tools + /health on one server."""
+
 from __future__ import annotations
 
 import logging
@@ -15,6 +16,7 @@ def build_app(settings: Settings):
     @mcp.custom_route("/health", methods=["GET"])
     async def _health(request):
         from starlette.responses import JSONResponse
+
         return JSONResponse({"status": "ok"})
 
     app = mcp.streamable_http_app()

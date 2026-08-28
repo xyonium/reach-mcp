@@ -3,6 +3,7 @@
 Defaults are read at *instantiation* time (via default_factory), not at class
 definition, so tests and runtime env changes are honored.
 """
+
 from __future__ import annotations
 
 import os
@@ -58,8 +59,12 @@ class Settings:
         default_factory=lambda: _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
     )
     openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY"))
-    rerank_model: str = field(default_factory=lambda: _env("REACH_MCP_RERANK_MODEL", "gemini-flash-lite"))
-    brief_model: str = field(default_factory=lambda: _env("REACH_MCP_BRIEF_MODEL", "gemini-flash-lite"))
+    rerank_model: str = field(
+        default_factory=lambda: _env("REACH_MCP_RERANK_MODEL", "gemini-flash-lite")
+    )
+    brief_model: str = field(
+        default_factory=lambda: _env("REACH_MCP_BRIEF_MODEL", "gemini-flash-lite")
+    )
 
     searxng_url: str = field(default_factory=lambda: _env("SEARXNG_URL", "http://searxng:8080"))
 
@@ -79,7 +84,9 @@ class Settings:
 
     source_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_SOURCE_TIMEOUT", 60))
     request_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_REQUEST_TIMEOUT", 15))
-    min_host_delay: float = field(default_factory=lambda: _env_float("REACH_MCP_MIN_HOST_DELAY", 0.5))
+    min_host_delay: float = field(
+        default_factory=lambda: _env_float("REACH_MCP_MIN_HOST_DELAY", 0.5)
+    )
     max_retries: int = field(default_factory=lambda: _env_int("REACH_MCP_MAX_RETRIES", 3))
 
 

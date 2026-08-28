@@ -15,6 +15,7 @@ Detect via `shutil.which("opencli")`. Each platform's adapter command differs:
 All emit JSON via `-f json` as a normalized {ok, schema_version, data, error}
 envelope.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,7 +62,8 @@ async def cli_search(platform: str, query: str, limit: int) -> list[Row]:
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
     except Exception:  # noqa: BLE001
@@ -91,10 +93,21 @@ def _extract_items(data) -> list[dict]:
 
 
 def _to_row(item: dict, source: str) -> Row:
-    text = (item.get("caption") or item.get("text") or item.get("desc")
-            or item.get("description") or item.get("title") or "")
-    url = (item.get("url") or item.get("link") or item.get("permalink")
-           or item.get("webVideoUrl") or "")
+    text = (
+        item.get("caption")
+        or item.get("text")
+        or item.get("desc")
+        or item.get("description")
+        or item.get("title")
+        or ""
+    )
+    url = (
+        item.get("url")
+        or item.get("link")
+        or item.get("permalink")
+        or item.get("webVideoUrl")
+        or ""
+    )
     author = item.get("author") or item.get("username")
     return Row(
         source=source,
@@ -102,8 +115,10 @@ def _to_row(item: dict, source: str) -> Row:
         title=text[:120],
         url=url,
         author=author,
-        date=item.get("createTime") or item.get("createdAt")
-        or item.get("timestamp") or item.get("publishedAt"),
+        date=item.get("createTime")
+        or item.get("createdAt")
+        or item.get("timestamp")
+        or item.get("publishedAt"),
         engagement={
             "likes": item.get("likes") or item.get("likesCount") or 0,
             "comments": item.get("comments") or item.get("commentsCount") or 0,

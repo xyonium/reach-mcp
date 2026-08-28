@@ -8,6 +8,7 @@ node/bird-search.mjs is unavailable.
 X search is literal keyword AND matching — all words in the query must appear
 in results, so long/multi-word queries may return few or no results.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -23,15 +24,13 @@ from reach_mcp.sources.base import Row, Source, get_client, register_source
 # deployment). reach-mcp does NOT vendor it; it reuses the one last30days ships.
 _BIRD_SEARCH_MJS = (
     Path("/config/last30days/cache/last30days-pp-mcp/v3.18.0/lib/vendor")
-    / "bird-search" / "bird-search.mjs"
+    / "bird-search"
+    / "bird-search.mjs"
 )
 
 
 def _bird_available() -> bool:
-    return (
-        shutil.which("node") is not None
-        and _BIRD_SEARCH_MJS.exists()
-    )
+    return shutil.which("node") is not None and _BIRD_SEARCH_MJS.exists()
 
 
 async def _fetch_via_bird(query: str, limit: int) -> list[Row]:
@@ -41,10 +40,15 @@ async def _fetch_via_bird(query: str, limit: int) -> list[Row]:
     # Query gets a since: filter for the recency window (bird supports it)
     try:
         proc = await asyncio.create_subprocess_exec(
-            "node", str(_BIRD_SEARCH_MJS), query,
-            "--count", str(min(limit, 30)), "--json",
+            "node",
+            str(_BIRD_SEARCH_MJS),
+            query,
+            "--count",
+            str(min(limit, 30)),
+            "--json",
             env=env,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
     except Exception:  # noqa: BLE001
@@ -58,17 +62,22 @@ async def _fetch_via_bird(query: str, limit: int) -> list[Row]:
     rows: list[Row] = []
     for t in items:
         author = (t.get("author") or {}).get("username")
-        rows.append(Row(
-            source="x", id=str(t.get("id") or ""),
-            title=(t.get("text") or "")[:120],
-            url=f"https://x.com/{author}/status/{t.get('id')}" if author else "",
-            author=author,
-            date=t.get("createdAt"),
-            engagement={"likes": t.get("likeCount") or 0,
-                        "retweets": t.get("retweetCount") or 0,
-                        "replies": t.get("replyCount") or 0},
-            text=t.get("text") or "",
-        ))
+        rows.append(
+            Row(
+                source="x",
+                id=str(t.get("id") or ""),
+                title=(t.get("text") or "")[:120],
+                url=f"https://x.com/{author}/status/{t.get('id')}" if author else "",
+                author=author,
+                date=t.get("createdAt"),
+                engagement={
+                    "likes": t.get("likeCount") or 0,
+                    "retweets": t.get("retweetCount") or 0,
+                    "replies": t.get("replyCount") or 0,
+                },
+                text=t.get("text") or "",
+            )
+        )
     return rows
 
 
@@ -83,8 +92,7 @@ async def _fetch_via_cookie(query: str, limit: int) -> list[Row]:
     try:
         data = await client.get_json(
             "https://api.x.com/2/search/adaptive.json",
-            params={"q": query, "count": str(min(limit, 50)),
-                    "query_source": "typed_query"},
+            params={"q": query, "count": str(min(limit, 50)), "query_source": "typed_query"},
             headers=headers,
         )
     except Exception:  # noqa: BLE001
@@ -95,15 +103,22 @@ async def _fetch_via_cookie(query: str, limit: int) -> list[Row]:
     users = g.get("users", {}) or {}
     for tid, t in tweets.items():
         user = users.get(t.get("user_id_str"), {})
-        rows.append(Row(
-            source="x", id=tid, title=(t.get("full_text") or "")[:120],
-            url=f"https://x.com/{user.get('screen_name','i')}/status/{tid}",
-            author=user.get("screen_name"), date=t.get("created_at"),
-            engagement={"likes": t.get("favorite_count") or 0,
-                        "retweets": t.get("retweet_count") or 0,
-                        "replies": t.get("reply_count") or 0},
-            text=t.get("full_text") or "",
-        ))
+        rows.append(
+            Row(
+                source="x",
+                id=tid,
+                title=(t.get("full_text") or "")[:120],
+                url=f"https://x.com/{user.get('screen_name', 'i')}/status/{tid}",
+                author=user.get("screen_name"),
+                date=t.get("created_at"),
+                engagement={
+                    "likes": t.get("favorite_count") or 0,
+                    "retweets": t.get("retweet_count") or 0,
+                    "replies": t.get("reply_count") or 0,
+                },
+                text=t.get("full_text") or "",
+            )
+        )
     return rows
 
 
@@ -116,8 +131,10 @@ async def _fetch_via_xquik(query: str, limit: int) -> list[Row]:
     key = os.environ.get("XQUIK_API_KEY", "").strip()
     if not key:
         return []
-    url = ("https://xquik.com/api/v1/x/tweets/search"
-           f"?q={urllib.parse.quote(query)}&queryType=Top&limit={min(limit, 30)}")
+    url = (
+        "https://xquik.com/api/v1/x/tweets/search"
+        f"?q={urllib.parse.quote(query)}&queryType=Top&limit={min(limit, 30)}"
+    )
     try:
         req = urllib.request.Request(url, headers={"X-Api-Key": key})
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -133,17 +150,22 @@ async def _fetch_via_xquik(query: str, limit: int) -> list[Row]:
             continue
         author = (t.get("user") or {}).get("username") or t.get("username")
         tid = t.get("id") or t.get("tweet_id") or ""
-        rows.append(Row(
-            source="x", id=str(tid),
-            title=(t.get("text") or "")[:120],
-            url=f"https://x.com/{author}/status/{tid}" if author else "",
-            author=author,
-            date=t.get("created_at") or t.get("createdAt"),
-            engagement={"likes": t.get("like_count") or t.get("favorite_count") or 0,
-                        "retweets": t.get("retweet_count") or 0,
-                        "replies": t.get("reply_count") or 0},
-            text=t.get("text") or "",
-        ))
+        rows.append(
+            Row(
+                source="x",
+                id=str(tid),
+                title=(t.get("text") or "")[:120],
+                url=f"https://x.com/{author}/status/{tid}" if author else "",
+                author=author,
+                date=t.get("created_at") or t.get("createdAt"),
+                engagement={
+                    "likes": t.get("like_count") or t.get("favorite_count") or 0,
+                    "retweets": t.get("retweet_count") or 0,
+                    "replies": t.get("reply_count") or 0,
+                },
+                text=t.get("text") or "",
+            )
+        )
     return rows
 
 

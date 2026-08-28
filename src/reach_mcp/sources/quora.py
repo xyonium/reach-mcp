@@ -4,6 +4,7 @@ Keyword search over public Quora content — no login/cookies needed. Actor
 verified 2026-08: `searchQueries[]` + `maxResults` returns questions and
 answers with engagement (upvotes, comments, shares, views).
 """
+
 from __future__ import annotations
 
 import os
@@ -27,4 +28,5 @@ class Quora(Source):
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         from reach_mcp.sources._apify import fetch_quora
+
         return await fetch_quora(query, limit)

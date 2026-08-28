@@ -10,10 +10,16 @@ async def test_truthsocial_parses_results(monkeypatch):
     monkeypatch.setenv("TRUTHSOCIAL_TOKEN", "tok")
     monkeypatch.setattr(
         "reach_mcp.sources.truthsocial._fetch_sync",
-        lambda q, limit: [{
-            "id": "1", "content": "<p>hello</p>", "created_at": "2026-07-01T00:00:00Z",
-            "account": {"username": "u"}, "favourites_count": 4, "reblogs_count": 1,
-        }],
+        lambda q, limit: [
+            {
+                "id": "1",
+                "content": "<p>hello</p>",
+                "created_at": "2026-07-01T00:00:00Z",
+                "account": {"username": "u"},
+                "favourites_count": 4,
+                "reblogs_count": 1,
+            }
+        ],
     )
     rows = await get_source("truthsocial").fetch("q", 30, 10)
     assert rows and rows[0].text == "hello" and rows[0].engagement["likes"] == 4
@@ -43,9 +49,7 @@ async def test_xiaohongshu_parses_mcp_markdown(monkeypatch):
     async def fake_fetch(url, query, days, limit):
         return []  # don't actually call MCP; just test the plain fetch
 
-    monkeypatch.setattr(
-        "reach_mcp.sources.xiaohongshu._fetch_via_mcp", fake_fetch
-    )
+    monkeypatch.setattr("reach_mcp.sources.xiaohongshu._fetch_via_mcp", fake_fetch)
     # Verify the source is available and fetch doesn't crash
     assert get_source("xiaohongshu").available()
     rows = await get_source("xiaohongshu").fetch("test", 30, 10)

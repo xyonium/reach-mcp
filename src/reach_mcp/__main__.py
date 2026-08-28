@@ -1,4 +1,5 @@
 """CLI entrypoint: dispatch http (uvicorn) or stdio (mcp.run)."""
+
 from __future__ import annotations
 
 import argparse
@@ -12,8 +13,12 @@ from reach_mcp.server import build_app
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="reach-mcp")
-    parser.add_argument("--transport", choices=["http", "stdio"], default=None,
-                        help="http (streamable-HTTP, default) or stdio")
+    parser.add_argument(
+        "--transport",
+        choices=["http", "stdio"],
+        default=None,
+        help="http (streamable-HTTP, default) or stdio",
+    )
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
     args = parser.parse_args()

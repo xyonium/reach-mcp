@@ -6,6 +6,7 @@ phone-SMS login — see docs/CREDENTIALS.md). Without a token the source returns
 (`WHISPER_BASE_URL`, default http://gpu.savorcare.com:8080/v1) — point it at
 any self-hosted LocalAI; the API key may be empty.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -54,14 +55,17 @@ def _token(name: str) -> str:
 def _device_id(token: str) -> str:
     """Deterministic device id derived from the refresh token (matches upstream)."""
     import re
+
     if not token or len(token) < 10:
         return "81ADBFD6-6921-482B-9AB9-A29E7CC7BB55"
     normalized = re.sub(r"[^a-f0-9]", "", token.lower())
     if len(normalized) < 32:
         normalized = normalized.ljust(32, "0")
     normalized = normalized[:32]
-    return (f"{normalized[:8]}-{normalized[8:12]}-"
-            f"4{normalized[13:16]}-a{normalized[17:20]}-{normalized[20:32]}").upper()
+    return (
+        f"{normalized[:8]}-{normalized[8:12]}-"
+        f"4{normalized[13:16]}-a{normalized[17:20]}-{normalized[20:32]}"
+    ).upper()
 
 
 def _headers() -> dict:
@@ -254,21 +258,25 @@ class Xiaoyuzhou(Source):
                     mins = int(dur) // 60
                 except (TypeError, ValueError):
                     mins = 0
-                rows.append(Row(
-                    source="xiaoyuzhou",
-                    id=e.get("eid") or "",
-                    title=e.get("title") or "",
-                    url=e.get("url") or f"https://www.xiaoyuzhoufm.com/episode/{e.get('eid')}",
-                    author=pod.get("title"),
-                    date=e.get("pubDate") or e.get("pub_date"),
-                    engagement={"commentCount": e.get("commentCount") or 0,
-                                "playCount": e.get("playCount") or 0},
-                    # shownotes snippet, not a transcript; audio_url kept so
-                    # fetch_content can transcribe this exact episode on demand.
-                    text=snip(e.get("shownotes") or e.get("description") or ""),
-                    audio_url=audio_url,
-                    duration_min=mins,
-                ))
+                rows.append(
+                    Row(
+                        source="xiaoyuzhou",
+                        id=e.get("eid") or "",
+                        title=e.get("title") or "",
+                        url=e.get("url") or f"https://www.xiaoyuzhoufm.com/episode/{e.get('eid')}",
+                        author=pod.get("title"),
+                        date=e.get("pubDate") or e.get("pub_date"),
+                        engagement={
+                            "commentCount": e.get("commentCount") or 0,
+                            "playCount": e.get("playCount") or 0,
+                        },
+                        # shownotes snippet, not a transcript; audio_url kept so
+                        # fetch_content can transcribe this exact episode on demand.
+                        text=snip(e.get("shownotes") or e.get("description") or ""),
+                        audio_url=audio_url,
+                        duration_min=mins,
+                    )
+                )
                 if len(rows) >= limit:
                     return rows
         return rows

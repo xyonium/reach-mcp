@@ -1,4 +1,5 @@
 """GitHub via the REST API (free; GH_TOKEN optional for higher rate limits)."""
+
 from __future__ import annotations
 
 import os
@@ -25,14 +26,19 @@ class GitHub(Source):
         )
         rows: list[Row] = []
         for r in data.get("items", []):
-            rows.append(Row(
-                source="github", id=str(r.get("id", "")),
-                title=r.get("full_name") or r.get("name") or "",
-                url=r.get("html_url") or "",
-                author=(r.get("owner") or {}).get("login"),
-                date=r.get("pushed_at"),
-                engagement={"stars": r.get("stargazers_count") or 0,
-                            "forks": r.get("forks_count") or 0},
-                text=(r.get("description") or ""),
-            ))
+            rows.append(
+                Row(
+                    source="github",
+                    id=str(r.get("id", "")),
+                    title=r.get("full_name") or r.get("name") or "",
+                    url=r.get("html_url") or "",
+                    author=(r.get("owner") or {}).get("login"),
+                    date=r.get("pushed_at"),
+                    engagement={
+                        "stars": r.get("stargazers_count") or 0,
+                        "forks": r.get("forks_count") or 0,
+                    },
+                    text=(r.get("description") or ""),
+                )
+            )
         return rows

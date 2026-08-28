@@ -10,8 +10,10 @@ from reach_mcp.synthesize import _chat_url, brief, rerank
 
 
 def _items(n):
-    return [Item(source="s", id=str(i), title=f"t{i}", url=f"https://x/{i}", text=f"body{i}")
-            for i in range(n)]
+    return [
+        Item(source="s", id=str(i), title=f"t{i}", url=f"https://x/{i}", text=f"body{i}")
+        for i in range(n)
+    ]
 
 
 def _settings(**over):
@@ -35,10 +37,13 @@ async def test_brief_calls_gateway(monkeypatch):
     async def fake_post(self, url, *, json, headers):  # noqa: ANN001
         class R:
             status_code = 200
+
             def json(self_inner):
                 return {"choices": [{"message": {"content": "BRIEF [1]"}}]}
+
             def raise_for_status(self_inner):
                 return None
+
         return R()
 
     monkeypatch.setattr("httpx.AsyncClient.post", fake_post)
@@ -60,6 +65,7 @@ async def test_brief_failure_hint_flags_missing_v1(monkeypatch):
 
     async def fake_post(self, url, *, json, headers):  # noqa: ANN001
         import httpx
+
         req = httpx.Request("POST", url)
         resp = httpx.Response(404, request=req)
         raise httpx.HTTPStatusError("404", request=req, response=resp)

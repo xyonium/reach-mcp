@@ -6,6 +6,7 @@ s.jina.ai (Jina's search endpoint) is intentionally NOT used: it doesn't index
 LinkedIn (the one place we tried it), and it burns one-time grant tokens.
 Web search is covered by Searxng (free) and Brave ($5/mo recurring credits).
 """
+
 from __future__ import annotations
 
 import os

@@ -1,4 +1,5 @@
 """Bluesky via the public AT Protocol search (free; BSKY creds optional)."""
+
 from __future__ import annotations
 
 from reach_mcp.sources.base import Row, Source, get_client, register_source
@@ -21,14 +22,20 @@ class Bluesky(Source):
             author = (p.get("author") or {}).get("handle")
             rec = p.get("record") or {}
             rkey = (p.get("uri", "") or "").split("/")[-1]
-            rows.append(Row(
-                source="bluesky", id=p.get("uri") or "",
-                title=(rec.get("text") or "")[:120],
-                url=f"https://bsky.app/profile/{author}/post/{rkey}",
-                author=author, date=rec.get("createdAt"),
-                engagement={"reply": p.get("replyCount") or 0,
-                            "repost": p.get("repostCount") or 0,
-                            "like": p.get("likeCount") or 0},
-                text=rec.get("text") or "",
-            ))
+            rows.append(
+                Row(
+                    source="bluesky",
+                    id=p.get("uri") or "",
+                    title=(rec.get("text") or "")[:120],
+                    url=f"https://bsky.app/profile/{author}/post/{rkey}",
+                    author=author,
+                    date=rec.get("createdAt"),
+                    engagement={
+                        "reply": p.get("replyCount") or 0,
+                        "repost": p.get("repostCount") or 0,
+                        "like": p.get("likeCount") or 0,
+                    },
+                    text=rec.get("text") or "",
+                )
+            )
         return rows

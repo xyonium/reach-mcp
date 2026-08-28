@@ -10,6 +10,7 @@ are fetched per-video separately (best-effort — they may also be captcha'd on 
 datacenter IP). Cookies (YTDLP_COOKIES) and a residential proxy (YTDLP_PROXY)
 both help; cookies are the practical fix from the container.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -75,7 +76,8 @@ async def _search_videos(query: str, limit: int) -> list[dict]:
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90)
     except Exception:  # noqa: BLE001
@@ -90,7 +92,8 @@ async def _search_videos(query: str, limit: int) -> list[dict]:
             log.warning(
                 "yt-dlp youtube search bot-walled (0 results): %s. "
                 "The container's datacenter IP is blocked; use a residential "
-                "proxy (YTDLP_PROXY) or cookies (YTDLP_COOKIES).", err.splitlines()[-1][:80]
+                "proxy (YTDLP_PROXY) or cookies (YTDLP_COOKIES).",
+                err.splitlines()[-1][:80],
             )
         elif err:
             log.warning("yt-dlp youtube search returned nothing: %s", err.splitlines()[-1][:80])
@@ -104,19 +107,21 @@ async def _search_videos(query: str, limit: int) -> list[dict]:
             v = json.loads(line)
         except json.JSONDecodeError:
             continue
-        out.append({
-            "id": v.get("id", ""),
-            "title": v.get("title", ""),
-            "url": f"https://www.youtube.com/watch?v={v.get('id', '')}",
-            "text": snip(v.get("description") or ""),
-            "date": v.get("upload_date"),
-            "duration_min": (v.get("duration") or 0) // 60,
-            "engagement": {
-                "views": v.get("view_count") or 0,
-                "likes": v.get("like_count") or 0,
-                "comments": v.get("comment_count") or 0,
-            },
-        })
+        out.append(
+            {
+                "id": v.get("id", ""),
+                "title": v.get("title", ""),
+                "url": f"https://www.youtube.com/watch?v={v.get('id', '')}",
+                "text": snip(v.get("description") or ""),
+                "date": v.get("upload_date"),
+                "duration_min": (v.get("duration") or 0) // 60,
+                "engagement": {
+                    "views": v.get("view_count") or 0,
+                    "likes": v.get("like_count") or 0,
+                    "comments": v.get("comment_count") or 0,
+                },
+            }
+        )
     # Metadata only — no transcript backfill. Full captions come from
     # fetch_content(source="youtube", ...) on demand. (The old design fetched
     # captions for the top results inline, which stalled every search on the
@@ -127,6 +132,7 @@ async def _search_videos(query: str, limit: int) -> list[dict]:
 def video_id_from(id_or_url: str) -> str:
     """Extract the video id from a watch/share URL, or return the id unchanged."""
     import re
+
     m = re.search(r"(?:v=|youtu\.be/|shorts/)([\w-]{6,15})", id_or_url)
     if m:
         return m.group(1)
@@ -145,9 +151,18 @@ async def fetch_transcript(video_id: str) -> str:
 
     with tempfile.TemporaryDirectory(prefix="reach-yt-") as tmp:
         cmd = [
-            "yt-dlp", "--ignore-config", "--no-cookies-from-browser",
-            "--write-auto-subs", "--sub-lang", "en.*,zh.*", "--sub-format", "vtt",
-            "--skip-download", "--no-warnings", "-o", f"{tmp}/%(id)s",
+            "yt-dlp",
+            "--ignore-config",
+            "--no-cookies-from-browser",
+            "--write-auto-subs",
+            "--sub-lang",
+            "en.*,zh.*",
+            "--sub-format",
+            "vtt",
+            "--skip-download",
+            "--no-warnings",
+            "-o",
+            f"{tmp}/%(id)s",
             f"https://www.youtube.com/watch?v={video_id}",
         ]
         prog = cmd[0]
@@ -157,7 +172,8 @@ async def fetch_transcript(video_id: str) -> str:
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
             await asyncio.wait_for(proc.communicate(), timeout=45)
         except Exception:  # noqa: BLE001
@@ -192,8 +208,13 @@ def _clean_vtt(vtt_text: str) -> str:
     lines = []
     for raw in vtt_text.splitlines():
         line = raw.strip()
-        if not line or line.startswith("WEBVTT") or line.startswith("Kind:") \
-                or line.startswith("Language:") or line.startswith("NOTE"):
+        if (
+            not line
+            or line.startswith("WEBVTT")
+            or line.startswith("Kind:")
+            or line.startswith("Language:")
+            or line.startswith("NOTE")
+        ):
             continue
         if "-->" in line:  # timestamp cue line
             continue
@@ -217,9 +238,17 @@ class YouTube(Source):
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         rows: list[Row] = []
         for v in await _search_videos(query, limit):
-            rows.append(Row(
-                source="youtube", id=v["id"], title=v["title"], url=v["url"],
-                author=None, date=v.get("date"), engagement=v.get("engagement", {}),
-                text=v.get("text") or "", duration_min=v.get("duration_min") or 0,
-            ))
+            rows.append(
+                Row(
+                    source="youtube",
+                    id=v["id"],
+                    title=v["title"],
+                    url=v["url"],
+                    author=None,
+                    date=v.get("date"),
+                    engagement=v.get("engagement", {}),
+                    text=v.get("text") or "",
+                    duration_min=v.get("duration_min") or 0,
+                )
+            )
         return rows
