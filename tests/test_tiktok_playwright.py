@@ -140,6 +140,7 @@ async def test_fetch_closes_browser_even_when_evaluate_raises():
             "reach_mcp.sources._tiktok_playwright._playwright_available",
             lambda: True,
         ),
+        patch("reach_mcp.sources._tiktok_playwright._playwright", lambda: AsyncMock()),
         patch(
             "reach_mcp.sources._tiktok_playwright._launch_browser",
             AsyncMock(return_value=browser),
