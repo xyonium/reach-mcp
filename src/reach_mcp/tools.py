@@ -28,11 +28,11 @@ from reach_mcp.synthesize import brief, rerank
 log = logging.getLogger(__name__)
 
 _SEARCH_DESC = (
-    "Search up to 32 social & web sources in parallel, score by engagement, "
+    "Search up to 33 social & web sources in parallel, score by engagement, "
     "and synthesize a cited brief. YOU control scope.\n\n"
     "Best scoping: `category` — social: x, reddit, instagram, threads, tiktok, "
-    "xiaohongshu, weibo, zhihu, douban, toutiao, bilibili, youtube, pinterest, "
-    "bluesky, linkedin, web, quora; "
+    "xiaohongshu, weibo, zhihu, douban, toutiao, linuxdo, bilibili, youtube, "
+    "pinterest, bluesky, linkedin, web, quora; "
     "it: github, hackernews, v2ex, rss, arxiv, dripstack, stackoverflow, "
     "lobsters; "
     "tech: arxiv, techmeme, digg, dripstack, hackernews; "
@@ -61,8 +61,8 @@ _SEARCH_DESC = (
     "TRENDING (热搜/热榜): set trending=true to fetch what's hot RIGHT NOW "
     "instead of searching — weibo 实时热搜 (with heat values), zhihu 热榜, "
     "toutiao 头条热榜 (with hot values), "
-    "hackernews front page, lobsters hottest, bilibili 综合热门 ranking, "
-    "x/X trends (via the "
+    "hackernews front page, lobsters hottest, linuxdo 每日热门, bilibili "
+    "综合热门 ranking, x/X trends (via the "
     "trends24 mirror — works WITHOUT the x login cookies), and github "
     "newly-hot repos (created this week, sorted by stars). `query` is IGNORED in "
     'this mode (pass ""); `sources` still scopes (e.g. sources=["weibo"]). '
