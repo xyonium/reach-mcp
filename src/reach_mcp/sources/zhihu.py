@@ -46,6 +46,11 @@ def _cookie_str() -> str:
     return os.environ.get("ZHIHU_COOKIE", "").strip()
 
 
+def _short(err: str, max_len: int = 60) -> str:
+    one = " ".join(err.split())
+    return one[:max_len].rstrip() + "..." if len(one) > max_len else one
+
+
 def _strip_tags(text: str) -> str:
     """excerpt/title carry <em> highlights and HTML entities."""
     text = re.sub(r"<[^>]+>", "", text)
@@ -164,13 +169,45 @@ class Zhihu(Source):
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         client = get_client()
+        self.last_notice = None
         if _cookie_str():
             try:
                 rows = await _search(client, query, limit)
                 if rows:
                     return rows
-            except Exception as e:  # noqa: BLE001
+                self.last_notice = (
+                    "ZHIHU_COOKIE search returned 0 results — showing 热榜 hot "
+                    "list instead; the cookie may be stale or the query empty"
+                )
+                log.warning("zhihu cookie search empty; degrading to hot list")
+            except Exception as e:
+                err = str(e)
+                auth_rejected = any(code in err for code in ("401", "403"))
+                if auth_rejected:
+                    # A REJECTED cookie is worse than no cookie: the WAF then
+                    # blacklists this client briefly, and even the cookie-free
+                    # hot-list endpoint starts 401-ing (verified 2026-08).
+                    # Retrying hot-list right away just re-poisons — stop.
+                    self.last_notice = (
+                        f"ZHIHU_COOKIE rejected ({_short(err)}) — refresh the "
+                        "cookie; the hot-list fallback is also WAF-poisoned "
+                        "for a while after a rejected login cookie, so zhihu "
+                        "returns nothing this call"
+                    )
+                    log.warning(
+                        "zhihu cookie rejected (%s); skipping hot-list "
+                        "to avoid poisoning it further",
+                        e,
+                    )
+                    return []
+                # Non-auth failure (network, 5xx): the cookie isn't the problem,
+                # hot-list fallback is safe.
+                self.last_notice = (
+                    f"ZHIHU_COOKIE search failed ({_short(err)}) — showing 热榜 hot list instead"
+                )
                 log.warning("zhihu search failed (%s); degrading to hot list", e)
+        # Hot list is an unauthenticated endpoint: never send the cookie.
+        # (A stale ZHIHU_COOKIE on this request turns a working 200 into a 401.)
         data = await client.get_json(_HOT_URL, params={"limit": 50}, headers={"User-Agent": _UA})
         rows = _rows_from_payload(data, limit * 2)  # headroom for filtering
         ql = query.strip().lower()

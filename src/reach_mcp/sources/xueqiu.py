@@ -7,6 +7,7 @@ Chrome's xueqiu.com cookies) to unlock authenticated search/quote endpoints.
 
 OpenCLI (desktop Chrome bridge) remains an optional boost when installed.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,8 +20,10 @@ import urllib.request
 
 from reach_mcp.sources.base import Row, Source, register_source, snip
 
-_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 _REFERER = "https://xueqiu.com/"
 _API_BASE = "https://xueqiu.com"
 
@@ -41,13 +44,26 @@ def _build_opener() -> urllib.request.OpenerDirector:
         if "=" not in pair:
             continue
         name, _, value = pair.partition("=")
-        jar.set_cookie(http.cookiejar.Cookie(
-            version=0, name=name.strip(), value=value.strip(),
-            port=None, port_specified=False, domain=".xueqiu.com",
-            domain_specified=True, domain_initial_dot=True, path="/",
-            path_specified=True, secure=True, expires=None, discard=True,
-            comment=None, comment_url=None, rest={},
-        ))
+        jar.set_cookie(
+            http.cookiejar.Cookie(
+                version=0,
+                name=name.strip(),
+                value=value.strip(),
+                port=None,
+                port_specified=False,
+                domain=".xueqiu.com",
+                domain_specified=True,
+                domain_initial_dot=True,
+                path="/",
+                path_specified=True,
+                secure=True,
+                expires=None,
+                discard=True,
+                comment=None,
+                comment_url=None,
+                rest={},
+            )
+        )
     return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
 
@@ -71,13 +87,18 @@ async def _search_stock(query: str, limit: int) -> list[Row]:
     for s in (data.get("stocks") or [])[:limit]:
         code = s.get("code") or s.get("symbol") or ""
         name = s.get("name") or code
-        rows.append(Row(
-            source="xueqiu", id=str(code),
-            title=name,
-            url=f"https://xueqiu.com/S/{code}" if code else "",
-            author=None, date=None,
-            engagement={}, text=snip(s.get("exchange") or ""),
-        ))
+        rows.append(
+            Row(
+                source="xueqiu",
+                id=str(code),
+                title=name,
+                url=f"https://xueqiu.com/S/{code}" if code else "",
+                author=None,
+                date=None,
+                engagement={},
+                text=snip(s.get("exchange") or ""),
+            )
+        )
     return rows
 
 
@@ -95,13 +116,18 @@ async def _fetch_via_api(query: str, limit: int) -> list[Row]:
         if not isinstance(s, dict):
             continue
         code = s.get("code") or s.get("symbol") or s.get("id") or ""
-        rows.append(Row(
-            source="xueqiu", id=str(code),
-            title=s.get("name") or s.get("query") or s.get("stockName") or code,
-            url=f"https://xueqiu.com/S/{code}" if code else "",
-            author=None, date=None,
-            engagement={}, text=snip(s.get("description") or ""),
-        ))
+        rows.append(
+            Row(
+                source="xueqiu",
+                id=str(code),
+                title=s.get("name") or s.get("query") or s.get("stockName") or code,
+                url=f"https://xueqiu.com/S/{code}" if code else "",
+                author=None,
+                date=None,
+                engagement={},
+                text=snip(s.get("description") or ""),
+            )
+        )
     return rows
 
 
@@ -109,9 +135,16 @@ async def _fetch_via_cli(query: str, limit: int) -> list[Row]:
     """OpenCLI boost (desktop Chrome bridge) when installed."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "opencli", "xueqiu", "search", query,
-            "--limit", str(min(limit, 30)), "-f", "json",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            "opencli",
+            "xueqiu",
+            "search",
+            query,
+            "--limit",
+            str(min(limit, 30)),
+            "-f",
+            "json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
     except Exception:  # noqa: BLE001
@@ -125,13 +158,18 @@ async def _fetch_via_cli(query: str, limit: int) -> list[Row]:
     rows: list[Row] = []
     for s in items[:limit]:
         code = s.get("symbol") or s.get("code") or s.get("id") or ""
-        rows.append(Row(
-            source="xueqiu", id=str(code),
-            title=s.get("name") or s.get("stockName") or code,
-            url=f"https://xueqiu.com/S/{code}" if code else "",
-            author=None, date=None,
-            engagement={}, text=snip(s.get("description") or ""),
-        ))
+        rows.append(
+            Row(
+                source="xueqiu",
+                id=str(code),
+                title=s.get("name") or s.get("stockName") or code,
+                url=f"https://xueqiu.com/S/{code}" if code else "",
+                author=None,
+                date=None,
+                engagement={},
+                text=snip(s.get("description") or ""),
+            )
+        )
     return rows
 
 
@@ -145,12 +183,22 @@ class Xueqiu(Source):
     host = "xueqiu.com"
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
+        self.last_notice = None
         # With login cookie: use authenticated search. Otherwise fall back to the
         # public suggest API (may return [] for many queries).
         if _cookie_str():
             rows = await _search_stock(query, limit)
             if rows:
                 return rows
+            self.last_notice = (
+                "XUEQIU_COOKIE search returned 0 — fell back to public suggest "
+                "API; the cookie may be stale, refresh it for full search"
+            )
+        else:
+            self.last_notice = (
+                "XUEQIU_COOKIE not set — using public suggest API only "
+                "(results are stock tickers, not posts/discussions)"
+            )
         api_rows = await _fetch_via_api(query, limit)
         if _has_cli():
             cli_rows = await _fetch_via_cli(query, limit)

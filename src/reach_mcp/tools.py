@@ -1,4 +1,5 @@
 """MCP tool definitions: search, list_sources, synthesize, read_url, fetch_content."""
+
 from __future__ import annotations
 
 import asyncio
@@ -48,7 +49,13 @@ _SEARCH_DESC = (
     "(filtering, not search — Chinese keywords work best). The pipeline already "
     "strips question/meta words per source and retries X with shorter variants, "
     "so lead with the core subject. Match query language to platform — Chinese "
-    "keywords work best for the CN sources.\n\n"
+    "keywords work best for the CN sources. For WeChat 公众号 articles, use the "
+    "web source with 公众号 in the query (auto-scoped to mp.weixin.qq.com) — "
+    "there is no dedicated wechat source.\n\n"
+    "CREDENTIAL HEALTH: if source_summary carries NOTICE lines, that source "
+    "degraded (e.g. a stale login cookie fell back to a limited public path). "
+    "Results are still usable, but mention the notice when it matters and "
+    "suggest refreshing the named env var.\n\n"
     "The default (synthesize=true) returns a cited brief plus scored items — "
     "one call = a finished report. It auto-backfills full content for the top "
     "rich-media items (xiaoyuzhou/youtube/bilibili) before the brief. "
@@ -133,9 +140,16 @@ async def _backfill_rich_media(items: list[Item], settings: Settings) -> None:
 
 def _item_to_dict(it: Item) -> dict:
     d = {
-        "source": it.source, "id": it.id, "title": it.title, "url": it.url,
-        "author": it.author, "date": it.date, "score": round(it.score, 4),
-        "engagement": it.engagement, "text": it.text, "cluster": it.cluster,
+        "source": it.source,
+        "id": it.id,
+        "title": it.title,
+        "url": it.url,
+        "author": it.author,
+        "date": it.date,
+        "score": round(it.score, 4),
+        "engagement": it.engagement,
+        "text": it.text,
+        "cluster": it.cluster,
     }
     if it.audio_url:
         d["audio_url"] = it.audio_url
@@ -145,7 +159,10 @@ def _item_to_dict(it: Item) -> dict:
 
 
 def _source_report_to_dict(r: SourceReport) -> dict:
-    return {"source": r.source, "status": r.status, "count": r.count, "error": r.error}
+    d = {"source": r.source, "status": r.status, "count": r.count, "error": r.error}
+    if r.notice:
+        d["notice"] = r.notice
+    return d
 
 
 def build_mcp(settings: Settings) -> FastMCP:
@@ -172,12 +189,17 @@ def build_mcp(settings: Settings) -> FastMCP:
     async def list_sources() -> list[dict]:
         out = []
         for s in SOURCES.values():
-            out.append({
-                "name": s.name, "description": s.description,
-                "needs_auth": s.needs_auth, "available": s.available(),
-                "required_env": list(s.required_env),
-                "default_days": s.default_days, "default_limit": s.default_limit,
-            })
+            out.append(
+                {
+                    "name": s.name,
+                    "description": s.description,
+                    "needs_auth": s.needs_auth,
+                    "available": s.available(),
+                    "required_env": list(s.required_env),
+                    "default_days": s.default_days,
+                    "default_limit": s.default_limit,
+                }
+            )
         return out
 
     @mcp.tool(description=_SEARCH_DESC)
@@ -193,8 +215,13 @@ def build_mcp(settings: Settings) -> FastMCP:
         client = PoliteClient(settings)
         try:
             items, reports = await run_search(
-                query, expand_categories(sources, category), days,
-                max_per_source, client, settings, max_chars_per_item,
+                query,
+                expand_categories(sources, category),
+                days,
+                max_per_source,
+                client,
+                settings,
+                max_chars_per_item,
             )
             brief_text = None
             if synthesize and items:
@@ -212,11 +239,19 @@ def build_mcp(settings: Settings) -> FastMCP:
 
     @mcp.tool(description=_SYNTH_DESC)
     async def synthesize(query: str, items: list[dict]) -> dict:
-        parsed = [Item(
-            source=i.get("source", ""), id=i.get("id", ""), title=i.get("title", ""),
-            url=i.get("url", ""), author=i.get("author"), date=i.get("date"),
-            engagement=i.get("engagement", {}), text=i.get("text", ""),
-        ) for i in items]
+        parsed = [
+            Item(
+                source=i.get("source", ""),
+                id=i.get("id", ""),
+                title=i.get("title", ""),
+                url=i.get("url", ""),
+                author=i.get("author"),
+                date=i.get("date"),
+                engagement=i.get("engagement", {}),
+                text=i.get("text", ""),
+            )
+            for i in items
+        ]
         return {"brief": await brief(query, parsed, settings)}
 
     @mcp.tool(name="fetch_content", description=_FETCH_CONTENT_DESC)

@@ -1,4 +1,5 @@
 """Source base class, Row/Item dataclasses, and the source registry."""
+
 from __future__ import annotations
 
 import os
@@ -50,13 +51,16 @@ class Source(ABC):
     required_env: tuple[str, ...] = ()
     default_days: int = 30
     default_limit: int = 20
+    # Set by fetch() when a non-fatal caveat applies to the just-completed call
+    # (degraded backend, stale cookie, fallback path). _fetch_one lifts it into
+    # the SourceReport so source_summary can surface it; cleared before each call.
+    last_notice: str | None = None
 
     def available(self) -> bool:
         return all(os.environ.get(v, "").strip() for v in self.required_env)
 
     @abstractmethod
-    async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
-        ...
+    async def fetch(self, query: str, days: int, limit: int) -> list[Row]: ...
 
 
 SOURCES: dict[str, Source] = {}

@@ -139,3 +139,30 @@ def test_weibo_zhihu_in_social_category():
     """CN sources (2026-08): weibo full search, zhihu hot-list — both social."""
     assert "weibo" in CATEGORIES["social"]
     assert "zhihu" in CATEGORIES["social"]
+
+
+def test_source_report_notice_field_renders_in_summary():
+    """Degraded-but-working sources surface a NOTICE line (e.g. zhihu cookie
+    search fell back to the hot list — data is fine but the agent should know)."""
+    reports = [
+        SourceReport(source="zhihu", status="ok", count=30,
+                     notice="ZHIHU_COOKIE search failed (403) — showing 热榜 hot list instead; refresh the cookie for real search"),
+        SourceReport(source="weibo", status="ok", count=5),
+    ]
+    s = render_source_summary(reports)
+    assert "NOTICE: zhihu" in s
+    assert "热榜" in s
+    assert "zhihu:30" in s  # still counted as ok
+    assert "NOTICE: weibo" not in s
+
+
+def test_weibo_visitor_failure_reported_when_cookieless_results():
+    """If weibo's visitor flow dies entirely it returns no rows — that must NOT
+    be a silent EMPTY: the summary should point at the visitor-cookie mechanism."""
+    reports = [
+        SourceReport(source="weibo", status="no_results", count=0,
+                     notice="visitor cookie flow failed (genvisitor2 unreachable?) — weibo returns nothing without visitor cookies"),
+    ]
+    s = render_source_summary(reports)
+    assert "NOTICE: weibo" in s
+    assert "visitor" in s
