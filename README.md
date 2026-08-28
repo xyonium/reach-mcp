@@ -19,7 +19,7 @@
 - 🔌 **Pick your sources.** `sources=["reddit","arxiv","xueqiu"]` or omit for all configured ones.
 - 📅 **Pick your window.** `days=7` for this week, `days=180` for the half-year -- no longer fixed at 30.
 - 🪓 **Decide what matters.** `synthesize=false` returns raw scored rows for the agent to reason over itself; `synthesize=true` (default) also runs an LLM rerank + brief. `max_chars_per_item` sets each row's text-snippet length (default 500) -- raise it for fuller CN posts, lower it to save tokens.
-- 🌐 **Chinese & English sources in one call** -- 雪球, V2EX, B站, 小宇宙, 小红书 alongside Reddit, X, YouTube, HN, GitHub, arXiv and the rest.
+- 🌐 **Chinese & English sources in one call** -- 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙, 小红书 alongside Reddit, X, YouTube, HN, GitHub, arXiv and the rest.
 - 🛡️ **Polite by default** -- per-host pacing, honors `Retry-After`, bounded timeouts. Never hammers a site.
 
 ## Sources (30)
@@ -204,7 +204,7 @@ OpenWebUI then connects to `http://mcp:8000/reach` (OpenAPI) or `http://mcp:8000
 
 > **OpenWebUI tool description (copy-paste):** OpenWebUI lets you override a tool's human-facing description. The one below matches reach-mcp's actual categories and defaults — paste it into the tool's description field so users see what the server can do:
 >
-> > 一次查询横跨 30 中英文信息源 —— 社媒通用（全网搜索、小红书、B站、X/Twitter、Reddit、Instagram、Threads、TikTok、YouTube、Pinterest、Bluesky、LinkedIn、quora、微博、知乎、豆瓣、头条）、IT 技术（GitHub、Hacker News、V2EX、RSS、arXiv、Dripstack）、科技（arXiv、Techmeme、Digg、Dripstack、Hacker News）、政经（雪球、Truth Social、Stocktwits、Polymarket）、播客（小宇宙——转录较慢，按需启用）。热搜热榜模式：微博实时热搜、知乎热榜、头条热榜、B站热门、X trends、GitHub 周热榜、HN front page。
+> > 一次查询横跨 30 中英文信息源 —— 社媒通用（全网搜索、小红书、微博、知乎、豆瓣、头条、B站、X/Twitter、Reddit、Instagram、Threads、TikTok、YouTube、Pinterest、Bluesky、LinkedIn、quora）、IT 技术（GitHub、Hacker News、V2EX、RSS、arXiv、Dripstack）、科技（arXiv、Techmeme、Digg、Dripstack、Hacker News）、政经（雪球、Truth Social、Stocktwits、Polymarket）、播客（小宇宙——转录较慢，按需启用）。热搜热榜模式：微博实时热搜、知乎热榜、头条热榜、B站热门、X trends、GitHub 周热榜、HN front page。
 
 > **Upgrading deps:** `touch /config/UPGRADE` in the config dir, then restart the container -- the entrypoint clears its binary caches and reinstalls fresh (yt-dlp, bili-cli, pp-cli, etc.).
 >
