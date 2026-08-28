@@ -35,7 +35,12 @@ async def test_apify_threads_fetch(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_threads_gated_without_token(monkeypatch):
+    """Without APIFY_API_TOKEN AND without playwright installed, threads is
+    gated off entirely (the free backend is the ungate)."""
     monkeypatch.delenv("APIFY_API_TOKEN", raising=False)
+    monkeypatch.setattr(
+        "reach_mcp.sources._threads_playwright._playwright_available", lambda: False
+    )
     assert not get_source("threads").available()
     rows = await get_source("threads").fetch("test", 30, 10)
     assert rows == []

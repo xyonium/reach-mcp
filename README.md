@@ -55,11 +55,11 @@
 | | `tiktok` | playwright in-page fetch (free, optional) / Apify / OpenCLI / ScrapeCreators | none (with playwright+chromium installed); else `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | | `instagram` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | | `pinterest` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
+| | `threads` | playwright SSR scrape (free, optional) / Apify | none (with playwright+chromium installed); else `APIFY_API_TOKEN` ($5/mo) |
 | **Binary** *(optional)* | `digg` | `digg-pp-cli` | none (needs the CLI on PATH) |
-| **Apify** | `threads` | Apify threads-scraper | `APIFY_API_TOKEN` ($5/mo recurring) |
-| | `quora` | Apify quora-search-scraper | `APIFY_API_TOKEN` (same key) |
+| **Apify** | `quora` | Apify quora-search-scraper | `APIFY_API_TOKEN` ($5/mo recurring) |
 
-> 💰 **Apify gives $5 free credits EVERY MONTH** (recurring, not one-time) on the Free plan -- enough for hundreds of search runs. Set `APIFY_API_TOKEN` to enable threads + quora + boost tiktok/instagram/pinterest/linkedin (Apify is the preferred backend; OpenCLI is a free desktop alternative; ScrapeCreators is a one-time-credit fallback).
+> 💰 **Apify gives $5 free credits EVERY MONTH** (recurring, not one-time) on the Free plan -- enough for hundreds of search runs. Set `APIFY_API_TOKEN` to enable quora + boost tiktok/threads/instagram/pinterest/linkedin. tiktok and threads have FREE playwright backends (in-page fetch / SSR scrape) that need no credential at all when playwright+chromium is installed.
 
 > ⚠️ **ScrapeCreators is 100 credits one-time, not free recurring.** It's now the lowest-priority fallback for tiktok/instagram/pinterest -- prefer Apify (monthly free) or OpenCLI (desktop, free). **LinkedIn uses Apify** for public posts (same `APIFY_API_TOKEN`, no LinkedIn login).
 
@@ -420,11 +420,12 @@ If neither is set, `youtube` still works when reach runs from a residential/host
 
 Digg is auto-enabled when the `digg-pp-cli` binary is on `PATH`. Built from the last30days project's build steps. Without the CLI, `digg` stays gated off.
 
-#### Apify (`APIFY_API_TOKEN`) -- threads, tiktok, instagram, pinterest, linkedin, quora
+#### Apify (`APIFY_API_TOKEN`) -- quora, tiktok, threads, instagram, pinterest, linkedin
 
 Apify's Free plan gives **$5 in credits every month** (recurring, not one-time) -- enough for hundreds of search runs. One token enables:
 
-- `threads` -- via the `apify/threads-scraper` Actor (the only viable free server-side path; Meta's own API needs app review)
+- `quora` -- via the `apify/quora-search-scraper` Actor (primary path)
+- `threads` -- fallback when the free playwright SSR backend isn't installed
 - `tiktok` / `instagram` / `pinterest` -- Apify is the preferred backend
 
 1. Sign up at [apify.com](https://apify.com) (Free plan, no card)
@@ -498,9 +499,14 @@ If you're coming from the `last30days` MCP server (mvanhorn/last30days-skill), h
 
 [MIT](LICENSE) © xyonium
 
-#### TikTok free backend / 抖音-free-channel (playwright, optional)
+#### TikTok + Threads free backends (playwright, optional)
 
-The `tiktok` source gains a **free, unlimited primary backend** when playwright + chromium are installed (live-verified 2026-08): a headless chromium opens `tiktok.com/explore`, runs the search as a same-origin in-page `fetch` (out-of-page HTTP and the TikTokApi library are bot-detected from datacenter IPs; the in-page fetch is not), parses the JSON, and **closes the browser before returning** — one launch per search, memory fully released between calls (measured: ~0.9GB RSS peak during the search, 0 after).
+The `tiktok` and `threads` sources gain a **free, unlimited primary backend** when playwright + chromium are installed (live-verified 2026-08):
+
+- **tiktok** — a headless chromium opens `tiktok.com/explore`, runs the search as a same-origin in-page `fetch` (out-of-page HTTP and the TikTokApi library are bot-detected from datacenter IPs; the in-page fetch is not), parses the JSON.
+- **threads** — a headless chromium renders `threads.net/search` (anonymous sessions get full SSR posts; plain curl gets a login shell) and parses the embedded Relay JSON blob.
+
+Both **close the browser before returning** — one launch per search, memory fully released between calls (measured: ~0.9GB RSS peak during the search, 0 after).
 
 Enable it in the image (~530MB extra disk, no runtime cost until a search runs):
 
