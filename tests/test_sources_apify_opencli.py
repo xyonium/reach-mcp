@@ -201,10 +201,16 @@ async def _call_tool(mcp, name, args):
 
 @pytest.mark.asyncio
 async def test_quora_uses_apify_when_token_set(monkeypatch):
-    """quora fetches via Apify when APIFY_API_TOKEN is set."""
+    """quora falls back to Apify when Searxng is unavailable/empty and
+    APIFY_API_TOKEN is set."""
     monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
+    monkeypatch.delenv("SEARXNG_URL", raising=False)  # force the Apify path
+    # Searxng fetch will raise (no server) -> empty -> Apify fallback
+    c = AsyncMock()
+    c.get_json = AsyncMock(side_effect=RuntimeError("no searxng"))
+    set_client(c)
     monkeypatch.setattr(
-        "reach_mcp.sources._apify.fetch_quora",
+        "reach_mcp.sources.quora._apify_fetch",
         AsyncMock(
             return_value=[
                 Row(
@@ -227,8 +233,13 @@ async def test_quora_uses_apify_when_token_set(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_quora_gated_without_token(monkeypatch):
+    """Gated off only when NEITHER Apify token NOR Searxng is configured."""
     monkeypatch.delenv("APIFY_API_TOKEN", raising=False)
+    monkeypatch.delenv("SEARXNG_URL", raising=False)
     assert not get_source("quora").available()
+    c = AsyncMock()
+    c.get_json = AsyncMock(side_effect=RuntimeError("no searxng"))
+    set_client(c)
     rows = await get_source("quora").fetch("q", 30, 10)
     assert rows == []
 
