@@ -494,3 +494,15 @@ If you're coming from the `last30days` MCP server (mvanhorn/last30days-skill), h
 ## License
 
 [MIT](LICENSE) © xyonium
+
+#### TikTok free backend / 抖音-free-channel (playwright, optional)
+
+The `tiktok` source gains a **free, unlimited primary backend** when playwright + chromium are installed (live-verified 2026-08): a headless chromium opens `tiktok.com/explore`, runs the search as a same-origin in-page `fetch` (out-of-page HTTP and the TikTokApi library are bot-detected from datacenter IPs; the in-page fetch is not), parses the JSON, and **closes the browser before returning** — one launch per search, memory fully released between calls (measured: ~0.9GB RSS peak during the search, 0 after).
+
+Enable it in the image (~530MB extra disk, no runtime cost until a search runs):
+
+```dockerfile
+RUN pip install --no-cache-dir playwright && playwright install --with-deps chromium
+```
+
+Without it the source silently falls back to Apify → OpenCLI → ScrapeCreators as before; the backend order is playwright (free) → Apify → OpenCLI → ScrapeCreators (paid/one-time).
