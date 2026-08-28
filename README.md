@@ -44,7 +44,7 @@
 | | `xiaoyuzhou` | public API | `XIAOYUZHOU_ACCESS_TOKEN` (login); `WHISPER_BASE_URL` (for `fetch_content` transcription) |
 | | `xiaohongshu` | xiaohongshu-mcp companion | `XHS_MCP_URL` |
 | | `weibo` | mobile API (m.weibo.cn) + auto visitor cookies | none |
-| | `zhihu` | 热榜 hot list via mobile API (api.zhihu.com) | none |
+| | `zhihu` | search via `ZHIHU_COOKIE`; hot-list via mobile API | `ZHIHU_COOKIE` (optional — unlocks real search) |
 | **Login-gated** *(off by default)* | `x` | cookies | `AUTH_TOKEN`/`CT0` |
 | | `truthsocial` | Mastodon API | `TRUTHSOCIAL_TOKEN` |
 | | `linkedin` | Apify (public posts) + Searxng fallback + ScrapeCreators (optional) | `APIFY_API_TOKEN` ($5/mo); `SEARXNG_URL` for fallback; `SCRAPECREATORS_API_KEY` optional |
@@ -245,6 +245,7 @@ WHISPER_BASE_URL="http://gpu.savorcare.com:8080/v1"  # OpenAI-compatible whisper
 WHISPER_API_KEY=""                           # optional; LocalAI doesn't check it
 WHISPER_MODEL="whisper-large"                # model name (default: whisper-large)
 XUEQIU_COOKIE="xq_a_token=...; u=..."        # 雪球 login cookie string (from Chrome; required for search)
+ZHIHU_COOKIE="z_c0=...; d_c0=..."            # 知乎 browser Cookie string (optional; unlocks real search, else hot-list only)
 
 
 # ===== Server settings =====
@@ -375,9 +376,16 @@ Notes: open the App *before* scanning (the QR expires quickly); don't log the sa
 
 Free, zero-config. Two-step pure-HTTP flow against the mobile realm (curl-verified 2026-08): `visitor.passport.weibo.cn/visitor/genvisitor2` mints SUB/SUBP visitor cookies in one call, then `m.weibo.cn/api/container/getIndex` returns real search results (text/author/interactions). Cookies are cached module-level and auto-regenerated on auth failure (`ok:-100`). The desktop site (s.weibo.com) needs JS fingerprinting and is NOT used.
 
-#### Zhihu / 知乎 (no credentials)
+#### Zhihu / 知乎 (`ZHIHU_COOKIE` optional)
 
-Hot-list browse via the mobile API host `api.zhihu.com/topstory/hot-lists/total` — the only unauthenticated Zhihu surface (the desktop host WAFs everything; search/question APIs need the `x-zse-96` signature + login). The source fetches the top-30 热榜, filters by query keywords, and degrades to the unfiltered hot list when nothing matches. Full Zhihu search would require a logged-in cookie + signature implementation.
+Two tiers, both curl-verified 2026-08:
+
+- **With `ZHIHU_COOKIE`** — real search via `search_v3`. Paste the browser `Cookie:` request header from a logged-in zhihu.com session (must contain `z_c0` and `d_c0`; F12 → Network → click any request → copy the Cookie header value). Works WITHOUT the `x-zse-96` signature as long as the cookie rides along. Returns answers/articles with upvote/comment counts.
+- **Without it** — 热榜 hot-list browse via the unauthenticated mobile API (`api.zhihu.com/topstory/hot-lists/total`): top-30 filtered by query keywords, degrading to the raw list when nothing matches.
+
+Expired/invalid cookies degrade to the hot list automatically (warning logged), never error the search.
+
+> ⚠️ The cookie is a login credential — treat `ZHIHU_COOKIE` like a password. `z_c0` rotates if you log out; re-copy after re-login.
 
 #### WeChat articles / 微信公众号 (no new source)
 
