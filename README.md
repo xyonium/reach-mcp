@@ -49,7 +49,7 @@
 | **Login-gated** *(off by default)* | `x` | cookies | `AUTH_TOKEN`/`CT0` |
 | | `truthsocial` | Mastodon API | `TRUTHSOCIAL_TOKEN` |
 | | `linkedin` | Apify (public posts) + Searxng fallback + ScrapeCreators (optional) | `APIFY_API_TOKEN` ($5/mo); `SEARXNG_URL` for fallback; `SCRAPECREATORS_API_KEY` optional |
-| | `tiktok` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
+| | `tiktok` | playwright in-page fetch (free, optional) / Apify / OpenCLI / ScrapeCreators | none (with playwright+chromium installed); else `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | | `instagram` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | | `pinterest` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | **Binary** *(optional)* | `digg` | `digg-pp-cli` | none (needs the CLI on PATH) |
