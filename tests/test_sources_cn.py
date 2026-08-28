@@ -822,3 +822,77 @@ async def test_douban_search_failure_sets_notice_and_recovers(monkeypatch):
     rows = await src.fetch("三体", 30, 10)
     assert rows == []
     assert src.last_notice and "rexxar" in src.last_notice
+
+
+@pytest.mark.asyncio
+async def test_toutiao_trending_hot_board():
+    """toutiao hot-board API — keyless JSON, live-verified 2026-08-28."""
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "message": "success",
+            "data": [
+                {
+                    "ClusterId": "7678988020976242222",
+                    "ClusterIdStr": "7678988020976242222",
+                    "Title": "李强：西藏泥石流灾害令人十分痛心",
+                    "HotValue": "82657510",
+                    "Url": "https://www.toutiao.com/trending/7678988020976242222/",
+                    "LabelDesc": "热门事件",
+                },
+                {
+                    "ClusterIdStr": "123",
+                    "Title": "A股平均股价14.50元",
+                    "HotValue": "1000",
+                    "Url": "https://www.toutiao.com/trending/123/",
+                    "LabelDesc": "",
+                },
+            ],
+        }
+    )
+    set_client(c)
+    rows = await get_source("toutiao").fetch_trending(10)
+    assert len(rows) == 2
+    r = rows[0]
+    assert r.source == "toutiao"
+    assert r.title == "李强：西藏泥石流灾害令人十分痛心"
+    assert r.engagement["hot"] == 82657510
+    assert r.url.startswith("https://www.toutiao.com/trending/")
+    assert "hot-board" in c.get_json.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_toutiao_search_parses_ssr_card_blobs():
+    """Search scrapes so.toutiao.com SSR page; result items live inside
+    <script type=application/json> card blobs (live-verified 2026-08-28)."""
+    blob = (
+        '{"data":{"authority_gid_list":"[]","card_data":[{"title":"体验<b>人工智能</b>",'
+        '"abstract":"一篇关于AI的文章","article_url":"https://m.gmw.cn/a.htm",'
+        '"source":"光明网","publish_time":1787609547,"id":"7677724318410"}]}}'
+    )
+    html = (
+        "<html><script type=application/json>{}</script>"
+        '<script type="application/json">' + blob + "</script></html>"
+    )
+    c = AsyncMock()
+    c.get_text = AsyncMock(return_value=html)
+    set_client(c)
+    rows = await get_source("toutiao").fetch("人工智能", 30, 10)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r.source == "toutiao"
+    assert r.title == "体验人工智能"  # <b> highlight tags stripped
+    assert r.url == "https://m.gmw.cn/a.htm"
+    assert r.author == "光明网"
+    assert r.date == "2026-08-24T22:12:27+00:00"  # publish_time -> ISO for recency scoring
+    assert "so.toutiao.com" in c.get_text.call_args.args[0]
+    assert "人工智能" in c.get_text.call_args.kwargs["params"]["keyword"]
+
+
+@pytest.mark.asyncio
+async def test_toutiao_search_empty_page_returns_empty():
+    c = AsyncMock()
+    c.get_text = AsyncMock(return_value="<html><p>no cards</p></html>")
+    set_client(c)
+    rows = await get_source("toutiao").fetch("anything", 30, 10)
+    assert rows == []

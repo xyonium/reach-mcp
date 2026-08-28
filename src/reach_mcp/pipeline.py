@@ -64,6 +64,7 @@ CATEGORIES: dict[str, list[str]] = {
         "weibo",
         "zhihu",
         "douban",
+        "toutiao",
     ],
     "it": ["github", "hackernews", "v2ex", "rss", "arxiv", "dripstack"],
     "tech": ["arxiv", "techmeme", "digg", "dripstack", "hackernews"],
