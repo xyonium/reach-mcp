@@ -166,6 +166,14 @@ class Zhihu(Source):
     )
     host = "zhihu.com"
     required_env = ()  # hot-list works without anything; cookie is a boost
+    supports_trending = True
+
+    async def fetch_trending(self, limit: int) -> list[Row]:
+        """热榜 unfiltered — same endpoint the no-cookie path browses."""
+        client = get_client()
+        self.last_notice = None
+        data = await client.get_json(_HOT_URL, params={"limit": 50}, headers={"User-Agent": _UA})
+        return _rows_from_payload(data, limit)
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         client = get_client()

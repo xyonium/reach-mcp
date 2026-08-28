@@ -51,6 +51,7 @@ class Source(ABC):
     required_env: tuple[str, ...] = ()
     default_days: int = 30
     default_limit: int = 20
+    supports_trending = False
     # Set by fetch() when a non-fatal caveat applies to the just-completed call
     # (degraded backend, stale cookie, fallback path). _fetch_one lifts it into
     # the SourceReport so source_summary can surface it; cleared before each call.
@@ -61,6 +62,15 @@ class Source(ABC):
 
     @abstractmethod
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]: ...
+
+    async def fetch_trending(self, limit: int) -> list[Row]:
+        """Current hot/trending items for this platform (query-independent).
+
+        Sources with a native hot-list endpoint override this and set
+        supports_trending = True. Default raises — callers gate on
+        supports_trending so the default is never hit in practice.
+        """
+        raise NotImplementedError(f"{self.name} has no trending endpoint")
 
 
 SOURCES: dict[str, Source] = {}

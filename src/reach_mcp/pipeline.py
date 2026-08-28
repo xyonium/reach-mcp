@@ -344,6 +344,68 @@ async def run_search(
     return items, reports
 
 
+async def run_trending(
+    sources: list[str] | None,
+    max_per_source: int,
+    client: PoliteClient,
+) -> tuple[list[Item], list[SourceReport]]:
+    """Current hot/trending items from every source that has a native endpoint.
+
+    Independent of run_search: query-free hot lists (weibo 实时热搜, zhihu 热榜,
+    HN front page, bilibili ranking). `sources` picks specific ones; None = all
+    available sources with supports_trending. Sources without trending support
+    get a "skipped" report so the summary is explicit about coverage.
+    """
+    import_all_sources()
+    set_client(client)
+    if sources is None:
+        targets = [s for s in SOURCES.values() if s.supports_trending and s.available()]
+        reports: list[SourceReport] = []
+    else:
+        targets, reports = [], []
+        for n in sources:
+            s = SOURCES.get(n)
+            if s is None:
+                reports.append(SourceReport(source=n, status="unknown", error="no such source"))
+            elif not s.supports_trending:
+                reports.append(
+                    SourceReport(source=n, status="skipped", error="no trending endpoint")
+                )
+            else:
+                targets.append(s)
+
+    async def _trending_one(s) -> tuple[list[Row], SourceReport]:
+        if not s.available():
+            return [], SourceReport(source=s.name, status="gated_off")
+        s.last_notice = None
+        try:
+            rows = await asyncio.wait_for(s.fetch_trending(max_per_source), timeout=90)
+            status = "ok" if rows else "no_results"
+            return rows, SourceReport(
+                source=s.name, status=status, count=len(rows), notice=s.last_notice
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("source %s trending errored: %s", s.name, e)
+            return [], SourceReport(
+                source=s.name,
+                status=classify_error(str(e)),
+                error=_short_err(str(e), 120),
+                notice=s.last_notice,
+            )
+
+    results = await asyncio.gather(*[_trending_one(s) for s in targets])
+    all_rows: list[Row] = []
+    for rows, rep in results:
+        reports.append(rep)
+        all_rows.extend(rows)
+    items = [_row_to_item(r) for r in all_rows]
+    items = dedup(items)
+    # Trending IS the freshness/engagement signal; skip query scoring (there is
+    # no query) but keep a stable heat-based order where the source provides one.
+    items.sort(key=lambda i: float(_engagement_value(i.engagement)), reverse=True)
+    return items, reports
+
+
 # Statuses that mean the source ran but found nothing or was blocked — grouped
 # together in the summary so a thin result is readable, not a wall of zeros.
 _SILENT_STATUSES = {"no_results", "gated_off"}
