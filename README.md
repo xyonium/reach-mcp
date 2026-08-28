@@ -1,6 +1,6 @@
 # reach-mcp
 
-> A controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, Hacker News, GitHub, arXiv, Polymarket, 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙 and more -- **you pick the sources, the window, and whether to synthesize.** 30 sources across Chinese & English platforms, with adjustable time window, source/category scoping, trending hot lists (微博/知乎/头条热搜...), and optional LLM synthesis.
+> A controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, Hacker News, GitHub, arXiv, Polymarket, 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙 and more -- **you pick the sources, the window, and whether to synthesize.** 32 sources across Chinese & English platforms, with adjustable time window, source/category scoping, trending hot lists (微博/知乎/头条热搜...), and optional LLM synthesis.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-green.svg?logo=python&logoColor=white)](https://www.python.org/)
@@ -22,7 +22,7 @@
 - 🌐 **Chinese & English sources in one call** -- 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙, 小红书 alongside Reddit, X, YouTube, HN, GitHub, arXiv and the rest.
 - 🛡️ **Polite by default** -- per-host pacing, honors `Retry-After`, bounded timeouts. Never hammers a site.
 
-## Sources (30)
+## Sources (32)
 
 | Tier | Source | Backend | Credential |
 |------|------|------|------|
@@ -36,6 +36,8 @@
 | | `stocktwits` | public API | none |
 | | `web` | Searxng + Brave (optional) | `SEARXNG_URL`; `BRAVE_API_KEY` optional ($5/mo) |
 | | `dripstack` | DripStack API (free, keyless) | none |
+| | `stackoverflow` | Stack Exchange official API (keyless, Q&A corpus) | none |
+| | `lobsters` | Lobste.rs JSON feeds (keyless; search = feed filter) | none |
 | | `rss` | feedparser | `RSS_FEEDS` (comma-separated feed URLs) |
 | **Video** | `youtube` | yt-dlp metadata; captions via `fetch_content` | `YTDLP_PROXY` (optional) |
 | **Chinese** | `xueqiu` | API (login cookie) | `XUEQIU_COOKIE` |
@@ -90,9 +92,9 @@ often return `[]` — the backend isn't broken, the query is too specific.
 ### `search` -- the primary tool
 
 **Description:**
-> Search up to 30 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
+> Search up to 32 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
 >
-> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, weibo, zhihu, douban, toutiao; it: github, hackernews, v2ex, rss, arxiv, dripstack; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
+> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, weibo, zhihu, douban, toutiao; it: github, hackernews, v2ex, rss, arxiv, dripstack, stackoverflow, lobsters; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
 >
 > Returns `{brief, items, sources_used, source_summary, available_sources}`. Each item: `{source, title, url, author, date, score, engagement, text}`. source_summary is one compact line per outcome -- 'x:3; reddit:5 | EMPTY: rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429) | NOTICE: zhihu(ZHIHU_COOKIE search failed — showing 热榜 instead; refresh the cookie)'; 'gated_off' means its credential env isn't set; NOTICE marks a degraded-but-working source (stale cookie fell back to a limited path) — usable data, but surface the caveat. Match query language to platform -- Chinese keywords work best for the CN sources. WeChat 公众号 queries on `web` auto-scope to mp.weixin.qq.com. Call list_sources if unsure what's configured.
 
@@ -135,7 +137,7 @@ often return `[]` — the backend isn't broken, the query is too specific.
 - **Default** (`sources=None`, `category=None`, `synthesize=true`): searches every configured source EXCEPT podcast (opt-in), auto-backfills full content for the top rich-media items, and returns a cited brief + all rows. Simplest.
 - **By type** (`category=["tech"]`): one keyword scopes to a topic group (social / it / tech / polec / podcast) -- the easiest way to match the sources to the kind of query. Categories overlap; several union together.
 - **Targeted** (`sources=[...]`): only hit what you need -- faster, cheaper, less noise. Combines with `category` (union).
-- **Trending** (`trending=true`): query-free hot lists -- weibo 实时热搜 (heat values, no login), zhihu 热榜, hackernews front page, bilibili 综合热门, x/X trends (trends24 mirror, no login), github newly-hot repos (created this week, sorted by stars). `query` is ignored; `sources` scopes. Use for "what's hot on weibo right now" / "今日热搜". Non-trending sources you name come back as `skipped`.
+- **Trending** (`trending=true`): query-free hot lists -- weibo 实时热搜 (heat values, no login), zhihu 热榜, hackernews front page, lobste.rs hottest, bilibili 综合热门, x/X trends (trends24 mirror, no login), github newly-hot repos (created this week, sorted by stars). `query` is ignored; `sources` scopes. Use for "what's hot on weibo right now" / "今日热搜". Non-trending sources you name come back as `skipped`.
 - **Raw** (`synthesize=false`): metadata + snippets only, no backfill -- fast. Read the rows, then `fetch_content(source, id_or_url)` on the ones worth full text, and `synthesize(query, items)` to re-brief.
 - **Podcast** (`category=["podcast"]` or `sources=["xiaoyuzhou"]`): opt-in because transcription is slow (minutes per episode) -- enable only when you actually need podcasts.
 - Rich-media sources (xiaoyuzhou/youtube/bilibili) are metadata-only at search time; their transcripts/captions come from `fetch_content` (or the synthesize=true auto-backfill).
@@ -204,7 +206,7 @@ OpenWebUI then connects to `http://mcp:8000/reach` (OpenAPI) or `http://mcp:8000
 
 > **OpenWebUI tool description (copy-paste):** OpenWebUI lets you override a tool's human-facing description. The one below matches reach-mcp's actual categories and defaults — paste it into the tool's description field so users see what the server can do:
 >
-> > 一次查询横跨 30 中英文信息源 —— 社媒通用（全网搜索、小红书、微博、知乎、豆瓣、头条、B站、X/Twitter、Reddit、Instagram、Threads、TikTok、YouTube、Pinterest、Bluesky、LinkedIn、quora）、IT 技术（GitHub、Hacker News、V2EX、RSS、arXiv、Dripstack）、科技（arXiv、Techmeme、Digg、Dripstack、Hacker News）、政经（雪球、Truth Social、Stocktwits、Polymarket）、播客（小宇宙——转录较慢，按需启用）。热搜热榜模式：微博实时热搜、知乎热榜、头条热榜、B站热门、X trends、GitHub 周热榜、HN front page。
+> > 一次查询横跨 32 中英文信息源 —— 社媒通用（全网搜索、小红书、微博、知乎、豆瓣、头条、B站、X/Twitter、Reddit、Instagram、Threads、TikTok、YouTube、Pinterest、Bluesky、LinkedIn、quora）、IT 技术（GitHub、Hacker News、V2EX、RSS、arXiv、Dripstack、Stack Overflow、Lobste.rs）、科技（arXiv、Techmeme、Digg、Dripstack、Hacker News）、政经（雪球、Truth Social、Stocktwits、Polymarket）、播客（小宇宙——转录较慢，按需启用）。热搜热榜模式：微博实时热搜、知乎热榜、头条热榜、B站热门、X trends、GitHub 周热榜、HN front page、Lobste.rs 热门。
 
 > **Upgrading deps:** `touch /config/UPGRADE` in the config dir, then restart the container -- the entrypoint clears its binary caches and reinstalls fresh (yt-dlp, bili-cli, pp-cli, etc.).
 >

@@ -28,12 +28,13 @@ from reach_mcp.synthesize import brief, rerank
 log = logging.getLogger(__name__)
 
 _SEARCH_DESC = (
-    "Search up to 30 social & web sources in parallel, score by engagement, "
+    "Search up to 32 social & web sources in parallel, score by engagement, "
     "and synthesize a cited brief. YOU control scope.\n\n"
     "Best scoping: `category` — social: x, reddit, instagram, threads, tiktok, "
     "xiaohongshu, weibo, zhihu, douban, toutiao, bilibili, youtube, pinterest, "
     "bluesky, linkedin, web, quora; "
-    "it: github, hackernews, v2ex, rss, arxiv, dripstack; "
+    "it: github, hackernews, v2ex, rss, arxiv, dripstack, stackoverflow, "
+    "lobsters; "
     "tech: arxiv, techmeme, digg, dripstack, hackernews; "
     "polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; "
     "podcast: xiaoyuzhou. Categories overlap (e.g. github is both it and tech) "
@@ -46,7 +47,9 @@ _SEARCH_DESC = (
     "'latest/news/how-to' filler. Keyword-slot sources (bluesky, tiktok, "
     "instagram, pinterest, linkedin, quora, xiaohongshu, weibo) take a compact "
     "phrase. Semantic sources (reddit, web, arxiv, github, hackernews, youtube, "
-    "bilibili) tolerate longer natural phrasing; douban (豆瓣 movie/TV/book/"
+    "bilibili) tolerate longer natural phrasing; stackoverflow (official SE "
+    "API, Q&A corpus) and lobsters (feed-filtered, so specific tech terms) "
+    "take English tech keywords; douban (豆瓣 movie/TV/book/"
     "music ratings, keyless) and zhihu take Chinese titles/keywords; zhihu is "
     "hot-list browse "
     "(filtering, not search — Chinese keywords work best). The pipeline already "
@@ -58,7 +61,8 @@ _SEARCH_DESC = (
     "TRENDING (热搜/热榜): set trending=true to fetch what's hot RIGHT NOW "
     "instead of searching — weibo 实时热搜 (with heat values), zhihu 热榜, "
     "toutiao 头条热榜 (with hot values), "
-    "hackernews front page, bilibili 综合热门 ranking, x/X trends (via the "
+    "hackernews front page, lobsters hottest, bilibili 综合热门 ranking, "
+    "x/X trends (via the "
     "trends24 mirror — works WITHOUT the x login cookies), and github "
     "newly-hot repos (created this week, sorted by stars). `query` is IGNORED in "
     'this mode (pass ""); `sources` still scopes (e.g. sources=["weibo"]). '
