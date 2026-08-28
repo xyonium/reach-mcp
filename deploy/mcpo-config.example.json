@@ -1,34 +1,38 @@
 {
-  "reach": {
-    "command": "uvx",
-    "args": ["reach-mcp", "--transport", "stdio"],
-    "env": {
-      "OPENAI_BASE_URL": "https://your-gateway/v1",
-      "OPENAI_API_KEY": "sk-...",
-      "REACH_MCP_RERANK_MODEL": "gemini-flash-lite",
-      "REACH_MCP_BRIEF_MODEL": "gemini-flash-lite",
-      "SEARXNG_URL": "http://searxng:8080",
-
-      "GH_TOKEN": "github_pat_...",
-      "BSKY_HANDLE": "you.bsky.social",
-      "BSKY_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx",
-      "JINA_API_KEY": "jina_...",
-      "BRAVE_API_KEY": "BSA_...",
-      "RSS_FEEDS": "https://hnrss.org/frontpage,https://www.federalreserve.gov/feeds/press_all.xml",
-
-      "AUTH_TOKEN": "...",
-      "CT0": "...",
-      "TRUTHSOCIAL_TOKEN": "...",
-      "APIFY_API_TOKEN": "apify_api_...",
-      "SCRAPECREATORS_API_KEY": "sc_...",
-
-      "XHS_MCP_URL": "http://xiaohongshu-mcp:18060/mcp",
-      "XIAOYUZHOU_ACCESS_TOKEN": "...",
-      "XIAOYUZHOU_REFRESH_TOKEN": "...",
-      "WHISPER_BASE_URL": "http://gpu.savorcare.com:8080/v1",
-      "WHISPER_API_KEY": "",
-      "WHISPER_MODEL": "whisper-large",
-      "XUEQIU_COOKIE": "xq_a_token=...; u=..."
+    "reach": {
+        "command": "uvx",
+        "args": [
+            "--from",
+            "reach-mcp[tiktok]",
+            "reach-mcp",
+            "--transport",
+            "stdio"
+        ],
+        "env": {
+            "OPENAI_BASE_URL": "https://your-gateway/v1",
+            "OPENAI_API_KEY": "sk-...",
+            "REACH_MCP_RERANK_MODEL": "gemini-flash-lite",
+            "REACH_MCP_BRIEF_MODEL": "gemini-flash-lite",
+            "SEARXNG_URL": "http://searxng:8080",
+            "GH_TOKEN": "github_pat_...",
+            "BSKY_HANDLE": "you.bsky.social",
+            "BSKY_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx",
+            "JINA_API_KEY": "jina_...",
+            "BRAVE_API_KEY": "BSA_...",
+            "RSS_FEEDS": "https://hnrss.org/frontpage,https://www.federalreserve.gov/feeds/press_all.xml",
+            "AUTH_TOKEN": "...",
+            "CT0": "...",
+            "TRUTHSOCIAL_TOKEN": "...",
+            "APIFY_API_TOKEN": "apify_api_...",
+            "SCRAPECREATORS_API_KEY": "sc_...",
+            "XHS_MCP_URL": "http://xiaohongshu-mcp:18060/mcp",
+            "XIAOYUZHOU_ACCESS_TOKEN": "...",
+            "XIAOYUZHOU_REFRESH_TOKEN": "...",
+            "WHISPER_BASE_URL": "http://gpu.savorcare.com:8080/v1",
+            "WHISPER_API_KEY": "",
+            "WHISPER_MODEL": "whisper-large",
+            "XUEQIU_COOKIE": "xq_a_token=...; u=...",
+            "PLAYWRIGHT_BROWSERS_PATH": "/config/ms-playwright"
+        }
     }
-  }
 }
