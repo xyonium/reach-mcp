@@ -14,9 +14,20 @@ async def test_apify_threads_fetch(monkeypatch):
     monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
     monkeypatch.setattr(
         "reach_mcp.sources.threads._apify_fetch",
-        AsyncMock(return_value=[__import__("reach_mcp.sources.base", fromlist=["Row"]).Row(
-            source="threads", id="1", title="T", url="https://threads.net/1",
-            author="u", date=None, engagement={"likes": 5}, text="hello")]),
+        AsyncMock(
+            return_value=[
+                __import__("reach_mcp.sources.base", fromlist=["Row"]).Row(
+                    source="threads",
+                    id="1",
+                    title="T",
+                    url="https://threads.net/1",
+                    author="u",
+                    date=None,
+                    engagement={"likes": 5},
+                    text="hello",
+                )
+            ]
+        ),
     )
     rows = await get_source("threads").fetch("test", 30, 10)
     assert rows and rows[0].source == "threads"
@@ -65,8 +76,10 @@ async def test_opencli_cli_search_parses_envelope(monkeypatch):
     """The OpenCLI helper parses the {ok,data:{items:[...]}} envelope."""
     from reach_mcp.sources import _opencli
 
-    fake_env = ('{"ok": true, "data": {"items": [{"id": "v1", "caption": "hi", '
-                '"url": "https://tiktok.com/@u/video/v1", "likes": 10}]}}')
+    fake_env = (
+        '{"ok": true, "data": {"items": [{"id": "v1", "caption": "hi", '
+        '"url": "https://tiktok.com/@u/video/v1", "likes": 10}]}}'
+    )
 
     class _FakeProc:
         async def communicate(self):
@@ -102,10 +115,20 @@ async def test_bilibili_prefers_cli(monkeypatch):
     )
     monkeypatch.setattr(
         "reach_mcp.sources.bilibili._fetch_via_api",
-        AsyncMock(return_value=[Row(
-            source="bilibili", id="BV1", title="Vid", url="https://b23.tv/1",
-            author="up", date=None, engagement={"play": 100}, text="",
-        )]),
+        AsyncMock(
+            return_value=[
+                Row(
+                    source="bilibili",
+                    id="BV1",
+                    title="Vid",
+                    url="https://b23.tv/1",
+                    author="up",
+                    date=None,
+                    engagement={"play": 100},
+                    text="",
+                )
+            ]
+        ),
     )
     rows = await get_source("bilibili").fetch("ai", 30, 10)
     assert rows and rows[0].engagement["play"] == 100
@@ -118,11 +141,16 @@ async def test_web_brave_boost_when_key_set(monkeypatch):
     monkeypatch.setenv("SEARXNG_URL", "http://searxng:8080")
     c = AsyncMock()
     # First call (searxng) and second call (brave) both via get_json
-    c.get_json = AsyncMock(side_effect=[
-        {"results": [{"title": "Searxng hit", "url": "https://a.com", "content": "s"}]},
-        {"web": {"results": [{"title": "Brave hit", "url": "https://b.com",
-                              "description": "b"}]}},
-    ])
+    c.get_json = AsyncMock(
+        side_effect=[
+            {"results": [{"title": "Searxng hit", "url": "https://a.com", "content": "s"}]},
+            {
+                "web": {
+                    "results": [{"title": "Brave hit", "url": "https://b.com", "description": "b"}]
+                }
+            },
+        ]
+    )
     set_client(c)
     rows = await get_source("web").fetch("query", 30, 10)
     titles = [r.title for r in rows]
@@ -172,10 +200,20 @@ async def test_quora_uses_apify_when_token_set(monkeypatch):
     monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
     monkeypatch.setattr(
         "reach_mcp.sources._apify.fetch_quora",
-        AsyncMock(return_value=[Row(
-            source="quora", id="1", title="What is MCP?",
-            url="https://quora.com/What-is-MCP", author="someone",
-            date=None, engagement={"upvotes": 42}, text="MCP is a protocol...")]),
+        AsyncMock(
+            return_value=[
+                Row(
+                    source="quora",
+                    id="1",
+                    title="What is MCP?",
+                    url="https://quora.com/What-is-MCP",
+                    author="someone",
+                    date=None,
+                    engagement={"upvotes": 42},
+                    text="MCP is a protocol...",
+                )
+            ]
+        ),
     )
     rows = await get_source("quora").fetch("MCP", 30, 10)
     assert rows and rows[0].source == "quora"
@@ -193,6 +231,7 @@ async def test_quora_gated_without_token(monkeypatch):
 def test_apify_base_url_env_override(monkeypatch):
     """APIFY_BASE_URL overrides the default api.apify.com (for key-rotator)."""
     from reach_mcp.sources import _apify
+
     monkeypatch.delenv("APIFY_BASE_URL", raising=False)
     assert _apify._api_base() == "https://api.apify.com"
     monkeypatch.setenv("APIFY_BASE_URL", "http://api-key-rotator:8788/")
@@ -217,6 +256,7 @@ async def test_linkedin_surfaces_backend_error(monkeypatch):
 async def test_linkedin_partial_success_returns_rows(monkeypatch):
     """One backend failing while another returns rows -> rows win, no raise."""
     from reach_mcp.sources.base import Row
+
     monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
     monkeypatch.setenv("SCRAPECREATORS_API_KEY", "sc_test")
     monkeypatch.setattr(
@@ -225,9 +265,20 @@ async def test_linkedin_partial_success_returns_rows(monkeypatch):
     )
     monkeypatch.setattr(
         "reach_mcp.sources.linkedin.scrape_search",
-        AsyncMock(return_value=[Row(source="linkedin", id="1", title="T",
-                                    url="https://linkedin.com/posts/1", author=None,
-                                    date=None, engagement={}, text="hi")]),
+        AsyncMock(
+            return_value=[
+                Row(
+                    source="linkedin",
+                    id="1",
+                    title="T",
+                    url="https://linkedin.com/posts/1",
+                    author=None,
+                    date=None,
+                    engagement={},
+                    text="hi",
+                )
+            ]
+        ),
     )
     rows = await get_source("linkedin").fetch("CGM sensor", 30, 10)
     assert rows and rows[0].source == "linkedin"

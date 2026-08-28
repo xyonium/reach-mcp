@@ -39,10 +39,14 @@ async def test_transcribe_verbose_json_segments(monkeypatch):
     # the transcript lives in segments[].text. Regression test: before this
     # parsing, every xiaoyuzhou transcription silently returned "".
     async def fake_post(self, url, *, headers, files):
-        return _Resp({"segments": [
-            {"start": 0, "end": 30, "text": " 第一段"},
-            {"start": 30, "end": 60, "text": "第二段 "},
-        ]})
+        return _Resp(
+            {
+                "segments": [
+                    {"start": 0, "end": 30, "text": " 第一段"},
+                    {"start": 30, "end": 60, "text": "第二段 "},
+                ]
+            }
+        )
 
     monkeypatch.setattr("httpx.AsyncClient.post", fake_post)
     out = await transcribe(b"audio", _settings(whisper_base_url="http://gw/v1"))

@@ -4,6 +4,7 @@ Prefers the `techmeme-pp-cli` binary (last30days' vetted CLI, the same
 shell-out pattern used for bili/digg/opencli) when on PATH. Falls back to
 scraping the public /river page and matching headlines against the query.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,9 +30,14 @@ async def _fetch_via_cli(query: str, days: int, limit: int) -> list[Row]:
     """
     try:
         proc = await asyncio.create_subprocess_exec(
-            "techmeme-pp-cli", "search", query,
-            "--days", str(days), "--json",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            "techmeme-pp-cli",
+            "search",
+            query,
+            "--days",
+            str(days),
+            "--json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
     except Exception:
@@ -44,14 +50,19 @@ async def _fetch_via_cli(query: str, days: int, limit: int) -> list[Row]:
     rows: list[Row] = []
     for i, item in enumerate(items[:limit]):
         url = item.get("link") or item.get("url") or ""
-        title = item.get("headline") or item.get("title") or f"Techmeme {i+1}"
-        rows.append(Row(
-            source="techmeme", id=url or str(i),
-            title=title, url=url,
-            author=item.get("source") or item.get("author"),
-            date=item.get("date") or item.get("time") or item.get("publishedAt"),
-            engagement={}, text=snip(item.get("summary") or item.get("description") or ""),
-        ))
+        title = item.get("headline") or item.get("title") or f"Techmeme {i + 1}"
+        rows.append(
+            Row(
+                source="techmeme",
+                id=url or str(i),
+                title=title,
+                url=url,
+                author=item.get("source") or item.get("author"),
+                date=item.get("date") or item.get("time") or item.get("publishedAt"),
+                engagement={},
+                text=snip(item.get("summary") or item.get("description") or ""),
+            )
+        )
     return rows
 
 
@@ -76,8 +87,18 @@ async def _fetch_via_scrape(query: str, limit: int) -> list[Row]:
         if ql and ql not in title.lower():
             continue
         seen.add(url)
-        rows.append(Row(source="techmeme", id=url, title=title, url=url,
-                        author=None, date=None, engagement={}, text=""))
+        rows.append(
+            Row(
+                source="techmeme",
+                id=url,
+                title=title,
+                url=url,
+                author=None,
+                date=None,
+                engagement={},
+                text="",
+            )
+        )
         if len(rows) >= limit:
             break
     return rows

@@ -8,6 +8,7 @@ Audio constraints (OpenAI Whisper): file <= 25 MB, formats mp3/mp4/mpeg/mpga/
 m4a/wav/webm. No explicit duration cap at the API layer (30s sliding window
 internally); only split when the file exceeds 25 MB.
 """
+
 from __future__ import annotations
 
 import logging
@@ -55,8 +56,7 @@ async def transcribe(audio: bytes, settings: Settings, timeout: float = 600) -> 
     }
     try:
         async with httpx.AsyncClient(timeout=timeout) as c:
-            r = await c.post(f"{base}/audio/transcriptions",
-                             headers=headers, files=files)
+            r = await c.post(f"{base}/audio/transcriptions", headers=headers, files=files)
             if r.status_code != 200:
                 log.warning("whisper returned %s: %s", r.status_code, r.text[:200])
                 return ""

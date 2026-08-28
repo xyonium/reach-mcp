@@ -25,9 +25,18 @@ class _StubSource:
         return True
 
     async def fetch(self, query, days, limit):
-        return [Row(source="stub", id="1", title=f"stub:{query}", url="https://stub/1",
-                    author="a", date="2026-07-01T00:00:00Z",
-                    engagement={"upvotes": 5}, text="body")]
+        return [
+            Row(
+                source="stub",
+                id="1",
+                title=f"stub:{query}",
+                url="https://stub/1",
+                author="a",
+                date="2026-07-01T00:00:00Z",
+                engagement={"upvotes": 5},
+                text="body",
+            )
+        ]
 
 
 @pytest.mark.asyncio
@@ -35,8 +44,7 @@ async def test_search_end_to_end(monkeypatch):
     # inject a stub source into the registry
     SOURCES["stub"] = _StubSource()
     try:
-        monkeypatch.setattr("reach_mcp.synthesize.rerank",
-                            AsyncMock(side_effect=lambda q, i, s: i))
+        monkeypatch.setattr("reach_mcp.synthesize.rerank", AsyncMock(side_effect=lambda q, i, s: i))
         monkeypatch.setattr("reach_mcp.synthesize.brief", AsyncMock(return_value="BRIEF"))
 
         mcp = build_mcp(Settings(openai_api_key="sk-x"))
@@ -79,8 +87,17 @@ class _LongTextSource:
 
     async def fetch(self, query, days, limit):
         from reach_mcp.sources.base import snip
-        return [Row(source="longtext", id="1", title="t", url="https://lt/1",
-                    engagement={}, text=snip("x" * 5000))]
+
+        return [
+            Row(
+                source="longtext",
+                id="1",
+                title="t",
+                url="https://lt/1",
+                engagement={},
+                text=snip("x" * 5000),
+            )
+        ]
 
 
 @pytest.mark.asyncio
@@ -88,11 +105,13 @@ async def test_max_chars_per_item_controls_snippet_length():
     SOURCES["longtext"] = _LongTextSource()
     try:
         client = PoliteClient(Settings())
-        items, _ = await run_search("q", ["longtext"], 30, 5, client, Settings(),
-                                    max_chars_per_item=200)
+        items, _ = await run_search(
+            "q", ["longtext"], 30, 5, client, Settings(), max_chars_per_item=200
+        )
         assert len(items[0].text) == 200
-        items, _ = await run_search("q", ["longtext"], 30, 5, client, Settings(),
-                                    max_chars_per_item=1500)
+        items, _ = await run_search(
+            "q", ["longtext"], 30, 5, client, Settings(), max_chars_per_item=1500
+        )
         assert len(items[0].text) == 1500
         # default stays 500 for the next call (no leakage between calls)
         items, _ = await run_search("q", ["longtext"], 30, 5, client, Settings())

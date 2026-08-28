@@ -13,8 +13,18 @@ class _Free(Source):
     host = "example.com"
 
     async def fetch(self, query, days, limit):
-        return [Row(source="free", id="1", title=query, url="https://example.com/1",
-                    author=None, date=None, engagement={}, text="x")]
+        return [
+            Row(
+                source="free",
+                id="1",
+                title=query,
+                url="https://example.com/1",
+                author=None,
+                date=None,
+                engagement={},
+                text="x",
+            )
+        ]
 
 
 @register_source

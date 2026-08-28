@@ -4,6 +4,7 @@ No viable free server-side API exists otherwise - Meta's Threads API requires a
 verified developer account + app review. Apify's threads-scraper Actor runs on
 the Free plan's $5 monthly credits (recurring). Requires APIFY_API_TOKEN.
 """
+
 from __future__ import annotations
 
 from reach_mcp.sources._apify import fetch_threads as _apify_fetch

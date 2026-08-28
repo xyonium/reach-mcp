@@ -10,6 +10,7 @@ messages from /api/2/streams/symbol/{SYMBOL}.json. Uses urllib (avoids the
 httpx TLS fingerprint that some CDNs block) + a friendly UA. Unauthenticated
 quota is ~200 req/hr; keep requests sparse.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,7 +38,10 @@ _FINANCE_HINTS = re.compile(
 )
 # Crypto names -> StockTwits symbols (a few common ones).
 _CRYPTO_ALIASES = {
-    "bitcoin": "BTC.X", "btc": "BTC.X", "ethereum": "ETH.X", "eth": "ETH.X",
+    "bitcoin": "BTC.X",
+    "btc": "BTC.X",
+    "ethereum": "ETH.X",
+    "eth": "ETH.X",
 }
 
 
@@ -58,7 +62,7 @@ def _get_json(url: str, timeout: int = 20) -> dict | list:
         except urllib.error.HTTPError as e:
             last = e
             if e.code == 403:  # transient Cloudflare block; back off and retry
-                time.sleep(1.0 * (2 ** attempt) + 0.5)
+                time.sleep(1.0 * (2**attempt) + 0.5)
                 continue
             raise
         except Exception:
@@ -79,12 +83,25 @@ def _resolve_symbols(topic: str, max_symbols: int = 2) -> list[str]:
     # Exclude common English words that uppercase by accident (APPLE, TESLA,
     # OPEN, etc.) — real tickers are abbreviations, not whole words.
     bare = topic.strip().upper()
-    _COMMON_WORDS = {"APPLE", "TESLA", "OPEN", "AI", "IRA", "LIFE", "NEW",
-                     "TIME", "HOME", "STAR", "PLAY", "GOOD", "WORK", "SOFT",
-                     "WINDOW", "CLOUD"}
-    if bare not in _COMMON_WORDS and re.fullmatch(
-        r"[A-Z]{1,5}(?:[.\-][A-Z0-9]{1,3})?", bare
-    ):
+    _COMMON_WORDS = {
+        "APPLE",
+        "TESLA",
+        "OPEN",
+        "AI",
+        "IRA",
+        "LIFE",
+        "NEW",
+        "TIME",
+        "HOME",
+        "STAR",
+        "PLAY",
+        "GOOD",
+        "WORK",
+        "SOFT",
+        "WINDOW",
+        "CLOUD",
+    }
+    if bare not in _COMMON_WORDS and re.fullmatch(r"[A-Z]{1,5}(?:[.\-][A-Z0-9]{1,3})?", bare):
         return [bare]
     for word in topic.lower().split():
         if word in _CRYPTO_ALIASES:
@@ -148,11 +165,16 @@ class StockTwits(Source):
         rows: list[Row] = []
         for msg in messages:
             user = (msg.get("user") or {}).get("username")
-            rows.append(Row(
-                source="stocktwits", id=str(msg.get("id", "")),
-                title=(msg.get("body") or "")[:120],
-                url=f"https://stocktwits.com/{user}/message/{msg.get('id','')}",
-                author=user, date=msg.get("created_at"),
-                engagement={}, text=msg.get("body") or "",
-            ))
+            rows.append(
+                Row(
+                    source="stocktwits",
+                    id=str(msg.get("id", "")),
+                    title=(msg.get("body") or "")[:120],
+                    url=f"https://stocktwits.com/{user}/message/{msg.get('id', '')}",
+                    author=user,
+                    date=msg.get("created_at"),
+                    engagement={},
+                    text=msg.get("body") or "",
+                )
+            )
         return rows

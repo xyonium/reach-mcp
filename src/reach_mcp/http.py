@@ -3,6 +3,7 @@
 Every source fetches through this client so rate-limiting policy is central
 and testable, not scattered across 23 sources. Kept deliberately simple.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,12 +46,12 @@ class PoliteClient:
             except Exception as e:  # noqa: BLE001
                 last_exc = e
                 if attempt < self._settings.max_retries:
-                    await asyncio.sleep(0.5 * (2 ** attempt))
+                    await asyncio.sleep(0.5 * (2**attempt))
                     continue
                 raise
             if resp.status_code in (429, 503):
                 ra = resp.headers.get("Retry-After")
-                delay = float(ra) if ra and ra.isdigit() else 0.5 * (2 ** attempt)
+                delay = float(ra) if ra and ra.isdigit() else 0.5 * (2**attempt)
                 if attempt < self._settings.max_retries:
                     log.warning("http %s -> %s, backing off %.2fs", url, resp.status_code, delay)
                     await asyncio.sleep(delay)
@@ -80,12 +81,12 @@ class PoliteClient:
             except Exception as e:  # noqa: BLE001
                 last_exc = e
                 if attempt < self._settings.max_retries:
-                    await asyncio.sleep(0.5 * (2 ** attempt))
+                    await asyncio.sleep(0.5 * (2**attempt))
                     continue
                 raise
             if resp.status_code in (429, 503):
                 ra = resp.headers.get("Retry-After")
-                delay = float(ra) if ra and ra.isdigit() else 0.5 * (2 ** attempt)
+                delay = float(ra) if ra and ra.isdigit() else 0.5 * (2**attempt)
                 if attempt < self._settings.max_retries:
                     log.warning("http %s -> %s, backing off %.2fs", url, resp.status_code, delay)
                     await asyncio.sleep(delay)

@@ -10,10 +10,10 @@ from reach_mcp.sources.base import Row, set_client
 
 @pytest.mark.asyncio
 async def test_reddit_parses_rss():
-    rss = '''<rss version="2.0"><channel><item>
+    rss = """<rss version="2.0"><channel><item>
       <title>Reddit thread</title><link>https://reddit.com/r/x/1</link>
       <pubDate>Mon, 01 Jul 2026 00:00:00 GMT</pubDate>
-      <description>body</description></item></channel></rss>'''
+      <description>body</description></item></channel></rss>"""
     c = AsyncMock()
     c.get_text = AsyncMock(return_value=rss)
     set_client(c)
@@ -24,8 +24,18 @@ async def test_reddit_parses_rss():
 @pytest.mark.asyncio
 async def test_web_uses_searxng_json():
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"results": [
-        {"title": "Hit", "url": "https://x", "content": "snippet", "publishedDate": "2026-07-01T00:00:00"}]})
+    c.get_json = AsyncMock(
+        return_value={
+            "results": [
+                {
+                    "title": "Hit",
+                    "url": "https://x",
+                    "content": "snippet",
+                    "publishedDate": "2026-07-01T00:00:00",
+                }
+            ]
+        }
+    )
     set_client(c)
     rows = await get_source("web").fetch("query", 30, 10)
     assert rows and rows[0].title == "Hit"
@@ -37,9 +47,16 @@ async def test_linkedin_uses_apify_when_token_set(monkeypatch):
     monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
     monkeypatch.delenv("SCRAPECREATORS_API_KEY", raising=False)
     rows_out = [
-        Row(source="linkedin", id="1", title="AI PM insights",
-            url="https://linkedin.com/posts/123", author="Jane",
-            date=None, engagement={"likes": 10}, text="Great post"),
+        Row(
+            source="linkedin",
+            id="1",
+            title="AI PM insights",
+            url="https://linkedin.com/posts/123",
+            author="Jane",
+            date=None,
+            engagement={"likes": 10},
+            text="Great post",
+        ),
     ]
     monkeypatch.setattr(
         "reach_mcp.sources._apify.fetch_linkedin_posts",
@@ -58,11 +75,18 @@ async def test_linkedin_falls_back_to_searxng_without_apify(monkeypatch):
     monkeypatch.delenv("SCRAPECREATORS_API_KEY", raising=False)
     monkeypatch.setenv("SEARXNG_URL", "http://searxng.test")
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"results": [
-        {"title": "LinkedIn post", "url": "https://linkedin.com/posts/x",
-         "content": "post body"},
-        {"title": "Other", "url": "https://example.com/", "content": "no"},
-    ]})
+    c.get_json = AsyncMock(
+        return_value={
+            "results": [
+                {
+                    "title": "LinkedIn post",
+                    "url": "https://linkedin.com/posts/x",
+                    "content": "post body",
+                },
+                {"title": "Other", "url": "https://example.com/", "content": "no"},
+            ]
+        }
+    )
     set_client(c)
     rows = await get_source("linkedin").fetch("AI PM", 30, 10)
     assert rows and rows[0].title == "LinkedIn post"
@@ -99,17 +123,23 @@ async def test_techmeme_parses_items():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("query", [
-    "人工智能 公众号",
-    "微信公众号 人工智能",
-    "微信文章 AI",
-    "AI weixin article",
-])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "人工智能 公众号",
+        "微信公众号 人工智能",
+        "微信文章 AI",
+        "AI weixin article",
+    ],
+)
 async def test_web_wechat_intent_scopes_to_mp(query):
     """WeChat-intent queries get site:mp.weixin.qq.com scoping on Searxng."""
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"results": [
-        {"title": "t", "url": "https://mp.weixin.qq.com/s/abc", "content": "c"}]})
+    c.get_json = AsyncMock(
+        return_value={
+            "results": [{"title": "t", "url": "https://mp.weixin.qq.com/s/abc", "content": "c"}]
+        }
+    )
     set_client(c)
     await get_source("web").fetch(query, 30, 10)
     q = c.get_json.call_args.kwargs.get("params", {}).get("q", "")

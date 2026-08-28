@@ -8,6 +8,7 @@ conservative (min_host_delay is applied by the polite client).
 Mirrors last30days' reddit_rss: combine search.rss + subreddit search feeds +
 top/monthly listings, dedup by URL.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -35,10 +36,14 @@ async def _fetch_feed(client, url: str, params: dict) -> list[dict]:
 
 def _to_row(e) -> Row:
     return Row(
-        source="reddit", id=e.get("id") or e.get("link") or "",
-        title=e.get("title") or "", url=e.get("link") or "",
-        author=e.get("author"), date=e.get("published"),
-        engagement={}, text=snip(e.get("summary") or ""),
+        source="reddit",
+        id=e.get("id") or e.get("link") or "",
+        title=e.get("title") or "",
+        url=e.get("link") or "",
+        author=e.get("author"),
+        date=e.get("published"),
+        engagement={},
+        text=snip(e.get("summary") or ""),
     )
 
 
@@ -56,18 +61,27 @@ class Reddit(Source):
 
         tasks = [
             # Global search (relevance + time window)
-            _fetch_feed(client, "https://www.reddit.com/search.rss",
-                        {"q": query, "sort": "relevance", "t": t,
-                         "limit": str(min(limit, 50))}),
+            _fetch_feed(
+                client,
+                "https://www.reddit.com/search.rss",
+                {"q": query, "sort": "relevance", "t": t, "limit": str(min(limit, 50))},
+            ),
         ]
         # Subreddit-scoped searches for a couple of the most relevant communities.
         for sub in _SUBREDDITS[:2]:
-            tasks.append(_fetch_feed(
-                client,
-                f"https://www.reddit.com/r/{sub}/search.rss",
-                {"q": query, "restrict_sr": "on", "sort": "relevance", "t": t,
-                 "limit": str(min(limit, 25))},
-            ))
+            tasks.append(
+                _fetch_feed(
+                    client,
+                    f"https://www.reddit.com/r/{sub}/search.rss",
+                    {
+                        "q": query,
+                        "restrict_sr": "on",
+                        "sort": "relevance",
+                        "t": t,
+                        "limit": str(min(limit, 25)),
+                    },
+                )
+            )
 
         batches = await asyncio.gather(*tasks, return_exceptions=True)
         seen: set[str] = set()

@@ -16,6 +16,7 @@ note_type, publish_time, search_scope, location); there is NO ``limit`` param
 (the tool returns one page). Results come back as a JSON text blob:
 {feeds: [{noteId, title, xsecToken, ...}], count: N}.
 """
+
 from __future__ import annotations
 
 import logging
@@ -48,44 +49,62 @@ async def _fetch_via_mcp(url: str, query: str, days: int, limit: int) -> list[Ro
             # Step 1: initialize MCP session
             init_r = await hclient.post(
                 endpoint,
-                json={"jsonrpc": "2.0", "method": "initialize",
-                      "params": {"protocolVersion": "2024-11-05",
-                                "capabilities": {}, "clientInfo": {"name": "reach-mcp", "version": "0.1"}},
-                      "id": 1},
-                headers={"Content-Type": "application/json",
-                        "Accept": "application/json, text/event-stream"},
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "reach-mcp", "version": "0.1"},
+                    },
+                    "id": 1,
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream",
+                },
             )
             sid = init_r.headers.get("mcp-session-id", "")
 
             # Step 2: call search_feeds tool. The companion intermittently
             # returns "context deadline exceeded" on first call (cold), so retry
             # once before giving up.
-            call_headers = {"Content-Type": "application/json",
-                          "Accept": "application/json, text/event-stream"}
+            call_headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+            }
             if sid:
                 call_headers["mcp-session-id"] = sid
 
-            payload = {"jsonrpc": "2.0", "method": "tools/call",
-                       "params": {"name": _SEARCH_TOOL,
-                                 "arguments": {"keyword": query, "filters": filters}},
-                       "id": 2}
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": _SEARCH_TOOL,
+                    "arguments": {"keyword": query, "filters": filters},
+                },
+                "id": 2,
+            }
             result = None
             for attempt in range(2):
                 call_r = await hclient.post(
-                    endpoint, json=payload, headers=call_headers,
+                    endpoint,
+                    json=payload,
+                    headers=call_headers,
                 )
                 if call_r.status_code != 200:
-                    log.warning("xiaohongshu-mcp returned %s: %s",
-                                call_r.status_code, call_r.text[:200])
+                    log.warning(
+                        "xiaohongshu-mcp returned %s: %s", call_r.status_code, call_r.text[:200]
+                    )
                     return []
                 result = call_r.json()
                 err = (result.get("result") or {}).get("isError")
                 if not err:
                     break
-                log.warning("xiaohongshu search_feeds error (attempt %d), retrying",
-                            attempt + 1)
+                log.warning("xiaohongshu search_feeds error (attempt %d), retrying", attempt + 1)
                 if attempt == 0:
                     import asyncio as _a
+
                     await _a.sleep(2)
     except Exception:
         log.debug("xiaohongshu-mcp call failed", exc_info=True)
@@ -161,16 +180,18 @@ def _parse_feeds_json(text: str, limit: int) -> list[Row]:
             "comments": _int_or_zero(inter.get("commentCount") or f.get("commentCount")),
             "shares": _int_or_zero(inter.get("sharedCount") or f.get("sharedCount")),
         }
-        rows.append(Row(
-            source="xiaohongshu",
-            id=note_id or url or title,
-            title=title[:200],
-            url=url,
-            author=author,
-            date=str(f.get("publishTime") or ""),
-            engagement=engagement,
-            text=snip(f.get("desc") or f.get("description") or ""),
-        ))
+        rows.append(
+            Row(
+                source="xiaohongshu",
+                id=note_id or url or title,
+                title=title[:200],
+                url=url,
+                author=author,
+                date=str(f.get("publishTime") or ""),
+                engagement=engagement,
+                text=snip(f.get("desc") or f.get("description") or ""),
+            )
+        )
         if len(rows) >= limit:
             break
     return rows

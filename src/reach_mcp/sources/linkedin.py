@@ -13,6 +13,7 @@ Jina's `s.jina.ai` was REMOVED 2026-08-03: it doesn't index LinkedIn (every
 query returned 0) and burns one-time grant tokens. `r.jina.ai` stays — it's
 what `read_url` uses, and it doesn't consume search tokens.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,7 @@ from reach_mcp.sources.base import Row, Source, get_client, register_source, sni
 
 async def _apify_search(query: str, limit: int) -> list[Row]:
     from reach_mcp.sources._apify import fetch_linkedin_posts, has_token
+
     if not has_token():
         return []
     return await fetch_linkedin_posts(query, limit)
@@ -45,11 +47,18 @@ async def _searxng_search(query: str, limit: int) -> list[Row]:
         url = r.get("url") or ""
         if "linkedin.com" not in url:
             continue
-        rows.append(Row(
-            source="linkedin", id=url, title=(r.get("title") or "")[:200],
-            url=url, author=None, date=None, engagement={},
-            text=snip(r.get("content") or ""),
-        ))
+        rows.append(
+            Row(
+                source="linkedin",
+                id=url,
+                title=(r.get("title") or "")[:200],
+                url=url,
+                author=None,
+                date=None,
+                engagement={},
+                text=snip(r.get("content") or ""),
+            )
+        )
     return rows
 
 

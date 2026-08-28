@@ -1,4 +1,5 @@
 """Unit tests for deterministic per-source query adaptation (query_core)."""
+
 from __future__ import annotations
 
 from reach_mcp.query_core import (
@@ -20,17 +21,19 @@ class TestExtractCoreSubject:
         assert extract_core_subject("latest news about nvidia earnings") == "nvidia earnings"
 
     def test_strips_suffix_when_enabled(self):
-        assert extract_core_subject(
-            "hermes agent use cases", strip_suffixes=True
-        ) == "hermes agent"
+        assert extract_core_subject("hermes agent use cases", strip_suffixes=True) == "hermes agent"
 
     def test_max_words_caps(self):
-        assert extract_core_subject(
-            "claude code production workflow pipeline deploy", max_words=3
-        ) == "claude code production"
+        assert (
+            extract_core_subject("claude code production workflow pipeline deploy", max_words=3)
+            == "claude code production"
+        )
 
     def test_strips_boolean_operators(self):
-        assert extract_core_subject("multi-agent OR agent simulation") == "multi-agent agent simulation"
+        assert (
+            extract_core_subject("multi-agent OR agent simulation")
+            == "multi-agent agent simulation"
+        )
 
     def test_fallback_when_all_noise(self):
         # Everything is noise -> fall back to the cleaned original, not "".
@@ -72,8 +75,10 @@ class TestAdaptQuery:
             assert adapt_query(src, "NVDA 最新 财报 怎么样") == "NVDA 最新 财报 怎么样"
 
     def test_x_collapses_to_core(self):
-        assert adapt_query("x", "what are the latest claude code prompting techniques") == \
-            "claude code"
+        assert (
+            adapt_query("x", "what are the latest claude code prompting techniques")
+            == "claude code"
+        )
 
     def test_x_caps_five_words(self):
         out = adapt_query("x", "one two three four five six seven")
@@ -83,8 +88,9 @@ class TestAdaptQuery:
         assert adapt_query("threads", "claude code production workflow") == "claude code"
 
     def test_threads_strips_boolean(self):
-        assert adapt_query("threads", "multi-agent OR agent simulation tools") == \
-            "multi-agent agent"
+        assert (
+            adapt_query("threads", "multi-agent OR agent simulation tools") == "multi-agent agent"
+        )
 
     def test_bluesky_strips_but_no_truncate(self):
         out = adapt_query("bluesky", "latest news about the claude code release today")

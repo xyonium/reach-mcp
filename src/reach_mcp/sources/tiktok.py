@@ -5,6 +5,7 @@ Priority: Apify (server-side, recurring free credits) -> OpenCLI (if on PATH,
 desktop) -> ScrapeCreators (one-time credits). First backend with a configured
 credential/CLI wins.
 """
+
 from __future__ import annotations
 
 import os

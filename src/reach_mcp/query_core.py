@@ -17,6 +17,7 @@ Layered noise sets let each source class strip the right vocabulary:
   VIRAL_NOISE   BASE + prompt/methodology meta (tiktok, instagram, pinterest)
   CN_NOISE      Chinese meta-words (最新/评测/教程/怎么/推荐...), substring-stripped
 """
+
 from __future__ import annotations
 
 import re
@@ -27,49 +28,169 @@ import re
 
 # Question words, articles, meta/research descriptors with no discriminating
 # power in a match. Stripped for the strictest sources.
-BASE_NOISE = frozenset({
-    # articles / prepositions / conjunctions
-    "a", "an", "the", "is", "are", "was", "were", "and", "or",
-    "of", "in", "on", "for", "with", "about", "to",
-    # question words
-    "how", "what", "which", "who", "why", "when", "where",
-    "does", "should", "could", "would",
-    # research/meta descriptors
-    "best", "top", "good", "great", "latest", "new", "news",
-    "update", "updates", "trending", "hottest", "hot", "popular", "viral",
-    "practices", "features", "guide", "tutorial", "recommendations",
-    "advice", "review", "reviews", "usecases", "use", "cases", "case",
-    "examples", "comparison", "versus", "vs", "tool", "tools",
-    "tips", "tricks", "methods", "strategies", "approaches",
-    "using", "uses", "people", "saying", "think", "said", "lately",
-})
+BASE_NOISE = frozenset(
+    {
+        # articles / prepositions / conjunctions
+        "a",
+        "an",
+        "the",
+        "is",
+        "are",
+        "was",
+        "were",
+        "and",
+        "or",
+        "of",
+        "in",
+        "on",
+        "for",
+        "with",
+        "about",
+        "to",
+        # question words
+        "how",
+        "what",
+        "which",
+        "who",
+        "why",
+        "when",
+        "where",
+        "does",
+        "should",
+        "could",
+        "would",
+        # research/meta descriptors
+        "best",
+        "top",
+        "good",
+        "great",
+        "latest",
+        "new",
+        "news",
+        "update",
+        "updates",
+        "trending",
+        "hottest",
+        "hot",
+        "popular",
+        "viral",
+        "practices",
+        "features",
+        "guide",
+        "tutorial",
+        "recommendations",
+        "advice",
+        "review",
+        "reviews",
+        "usecases",
+        "use",
+        "cases",
+        "case",
+        "examples",
+        "comparison",
+        "versus",
+        "vs",
+        "tool",
+        "tools",
+        "tips",
+        "tricks",
+        "methods",
+        "strategies",
+        "approaches",
+        "using",
+        "uses",
+        "people",
+        "saying",
+        "think",
+        "said",
+        "lately",
+    }
+)
 
 # Micro-blog platforms: research/meta words rarely appear in a post body.
-SOCIAL_NOISE = frozenset({
-    "best", "top", "good", "great", "awesome",
-    "latest", "new", "news", "update", "updates",
-    "trending", "hottest", "popular", "viral",
-    "practices", "features", "recommendations", "advice",
-    "or", "and",
-})
+SOCIAL_NOISE = frozenset(
+    {
+        "best",
+        "top",
+        "good",
+        "great",
+        "awesome",
+        "latest",
+        "new",
+        "news",
+        "update",
+        "updates",
+        "trending",
+        "hottest",
+        "popular",
+        "viral",
+        "practices",
+        "features",
+        "recommendations",
+        "advice",
+        "or",
+        "and",
+    }
+)
 
 # Viral/discovery platforms: BASE (drops articles/prepositions) + the
 # prompt-meta and methodology clusters that flood these platforms.
-VIRAL_NOISE = BASE_NOISE | frozenset({
-    "killer", "prompt", "prompts", "prompting",
-    "methods", "strategies", "approaches", "hacks", "ideas",
-})
+VIRAL_NOISE = BASE_NOISE | frozenset(
+    {
+        "killer",
+        "prompt",
+        "prompts",
+        "prompting",
+        "methods",
+        "strategies",
+        "approaches",
+        "hacks",
+        "ideas",
+    }
+)
 
 # Chinese meta/question words — the提问方式 (how you ask), not the内容 (内容).
 # Stripped so a verbose CN question collapses to its content keywords.
 # Ordered longest-first so 求推荐/大家怎么看 match before their substrings.
-CN_NOISE = frozenset({
-    "大家怎么看", "求推荐", "怎么样", "怎么办", "值得买", "好不好",
-    "最新", "新闻", "资讯", "消息", "评测", "测评", "教程", "攻略",
-    "怎么", "如何", "什么", "哪些", "哪个", "推荐", "对比", "比较",
-    "怎么看", "值得", "体验", "案例", "用法", "盘点", "好用", "靠谱",
-    "咋样", "近来", "最近", "近期", "表现",
-})
+CN_NOISE = frozenset(
+    {
+        "大家怎么看",
+        "求推荐",
+        "怎么样",
+        "怎么办",
+        "值得买",
+        "好不好",
+        "最新",
+        "新闻",
+        "资讯",
+        "消息",
+        "评测",
+        "测评",
+        "教程",
+        "攻略",
+        "怎么",
+        "如何",
+        "什么",
+        "哪些",
+        "哪个",
+        "推荐",
+        "对比",
+        "比较",
+        "怎么看",
+        "值得",
+        "体验",
+        "案例",
+        "用法",
+        "盘点",
+        "好用",
+        "靠谱",
+        "咋样",
+        "近来",
+        "最近",
+        "近期",
+        "表现",
+    }
+)
 # Longest-first so multi-char phrases are removed before their substrings.
 _CN_NOISE_SORTED = sorted(CN_NOISE, key=len, reverse=True)
 
@@ -79,16 +200,27 @@ _BOOLEAN_RE = re.compile(r"\b(?:OR|AND|NOT)\b")
 
 # Question/meta prefixes stripped from the front of a query (longest first).
 _PREFIXES = (
-    "what are the best", "what is the best", "what are the latest",
-    "what are people saying about", "what do people think about",
-    "how do i use", "how to use", "how to",
-    "what are", "what is", "tips for", "best practices for",
+    "what are the best",
+    "what is the best",
+    "what are the latest",
+    "what are people saying about",
+    "what do people think about",
+    "how do i use",
+    "how to use",
+    "how to",
+    "what are",
+    "what is",
+    "tips for",
+    "best practices for",
 )
 
 # Trailing meta suffixes stripped from the end (X per last30days).
 _SUFFIXES = (
-    "best practices", "use cases", "prompt techniques",
-    "prompting techniques", "prompting tips",
+    "best practices",
+    "use cases",
+    "prompt techniques",
+    "prompting techniques",
+    "prompting tips",
 )
 
 # CJK unified ideographs — each counts as one "word" for cap purposes.
@@ -98,7 +230,7 @@ _CJK_RE = re.compile(r"[一-鿿㐀-䶿]")
 def _strip_prefixes(text: str) -> str:
     for p in _PREFIXES:
         if text.startswith(p + " "):
-            return text[len(p):].strip()
+            return text[len(p) :].strip()
     return text
 
 

@@ -1,4 +1,5 @@
 """arXiv papers via the Atom API (free, no key), parsed with feedparser."""
+
 from __future__ import annotations
 
 import feedparser
@@ -22,14 +23,16 @@ class Arxiv(Source):
         rows: list[Row] = []
         for e in feed.entries:
             authors = ", ".join(a.get("name", "") for a in e.get("authors", [])) or None
-            rows.append(Row(
-                source="arxiv",
-                id=e.get("id") or "",
-                title=e.get("title", "").strip(),
-                url=e.get("id") or e.get("link") or "",
-                author=authors,
-                date=e.get("published"),
-                engagement={},
-                text=snip(e.get("summary") or ""),
-            ))
+            rows.append(
+                Row(
+                    source="arxiv",
+                    id=e.get("id") or "",
+                    title=e.get("title", "").strip(),
+                    url=e.get("id") or e.get("link") or "",
+                    author=authors,
+                    date=e.get("published"),
+                    engagement={},
+                    text=snip(e.get("summary") or ""),
+                )
+            )
         return rows

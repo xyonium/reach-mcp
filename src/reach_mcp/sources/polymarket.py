@@ -1,4 +1,5 @@
 """Polymarket prediction markets via the public gamma API (free, no key)."""
+
 from __future__ import annotations
 
 from reach_mcp.sources.base import Row, Source, get_client, register_source, snip
@@ -23,12 +24,16 @@ class Polymarket(Source):
             except (TypeError, ValueError):
                 vol = 0.0
             prices = m.get("outcomePrices", "[]")
-            rows.append(Row(
-                source="polymarket", id=str(m.get("id", "")),
-                title=m.get("question") or "",
-                url=f"https://polymarket.com/event/{m.get('slug','')}",
-                author=None, date=m.get("endDate"),
-                engagement={"volume": vol, "prices": prices},
-                text=snip(m.get("description") or ""),
-            ))
+            rows.append(
+                Row(
+                    source="polymarket",
+                    id=str(m.get("id", "")),
+                    title=m.get("question") or "",
+                    url=f"https://polymarket.com/event/{m.get('slug', '')}",
+                    author=None,
+                    date=m.get("endDate"),
+                    engagement={"volume": vol, "prices": prices},
+                    text=snip(m.get("description") or ""),
+                )
+            )
         return rows
