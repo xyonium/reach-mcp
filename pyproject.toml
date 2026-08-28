@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reach-mcp"
-version = "0.4.3"
+version = "0.5.0"
 description = "Multi-source search MCP server for AI agents. Search Reddit, X, YouTube, HN, GitHub, arXiv, Polymarket, 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙 & more — 30 sources across Chinese & English platforms with adjustable time window, source/category scoping, trending hot lists, and optional LLM synthesis."
 readme = "README.md"
 requires-python = ">=3.10"
