@@ -3,6 +3,8 @@ from __future__ import annotations
 import pkgutil
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from reach_mcp.pipeline import (
     CATEGORIES,
     DEFAULT_EXCLUDED,
@@ -14,13 +16,14 @@ from reach_mcp.pipeline import (
     render_source_summary,
     score,
 )
-from reach_mcp.sources.base import Item
+from reach_mcp.sources.base import Item, Row, Source
 
 
 def _item(source, title, url, eng, days_ago=0, score_=0.0):
     date = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
-    return Item(source=source, id=url, title=title, url=url, engagement=eng,
-                date=date, score=score_)
+    return Item(
+        source=source, id=url, title=title, url=url, engagement=eng, date=date, score=score_
+    )
 
 
 def test_dedup_by_url():
@@ -96,8 +99,10 @@ def test_categories_cover_every_registered_source():
     # other tests (test_registry, test_integration) register stub sources
     # ("free"/"gated"/"stub") into SOURCES that must not leak into categories.
     import reach_mcp.sources as pkg
+
     on_disk = {
-        m.name for m in pkgutil.iter_modules(pkg.__path__)
+        m.name
+        for m in pkgutil.iter_modules(pkg.__path__)
         if m.name not in {"base", "__init__"} and not m.name.startswith("_")
     }
     grouped = {n for names in CATEGORIES.values() for n in names}
@@ -124,8 +129,7 @@ def test_render_summary_groups_empty_and_shows_counts():
         SourceReport(source="reddit", status="ok", count=5),
         SourceReport(source="rss", status="no_results"),
         SourceReport(source="v2ex", status="gated_off"),
-        SourceReport(source="tiktok", status="rate_limited",
-                     error="Monthly usage limit exceeded"),
+        SourceReport(source="tiktok", status="rate_limited", error="Monthly usage limit exceeded"),
         SourceReport(source="digg", status="errored", error="HTTP 429"),
     ]
     s = render_source_summary(reports)
@@ -145,8 +149,12 @@ def test_source_report_notice_field_renders_in_summary():
     """Degraded-but-working sources surface a NOTICE line (e.g. zhihu cookie
     search fell back to the hot list — data is fine but the agent should know)."""
     reports = [
-        SourceReport(source="zhihu", status="ok", count=30,
-                     notice="ZHIHU_COOKIE search failed (403) — showing 热榜 hot list instead; refresh the cookie for real search"),
+        SourceReport(
+            source="zhihu",
+            status="ok",
+            count=30,
+            notice="ZHIHU_COOKIE search failed (403) — showing 热榜 hot list instead; refresh the cookie for real search",
+        ),
         SourceReport(source="weibo", status="ok", count=5),
     ]
     s = render_source_summary(reports)
@@ -160,9 +168,70 @@ def test_weibo_visitor_failure_reported_when_cookieless_results():
     """If weibo's visitor flow dies entirely it returns no rows — that must NOT
     be a silent EMPTY: the summary should point at the visitor-cookie mechanism."""
     reports = [
-        SourceReport(source="weibo", status="no_results", count=0,
-                     notice="visitor cookie flow failed (genvisitor2 unreachable?) — weibo returns nothing without visitor cookies"),
+        SourceReport(
+            source="weibo",
+            status="no_results",
+            count=0,
+            notice="visitor cookie flow failed (genvisitor2 unreachable?) — weibo returns nothing without visitor cookies",
+        ),
     ]
     s = render_source_summary(reports)
     assert "NOTICE: weibo" in s
     assert "visitor" in s
+
+
+@pytest.mark.asyncio
+async def test_run_trending_gathers_trending_sources():
+    """run_trending queries only supports_trending sources; sources arg optional."""
+    from unittest.mock import AsyncMock
+
+    import reach_mcp.pipeline as pl
+
+    fake_rows = [
+        Row(source="weibo", id="h1", title="热搜一", url="https://m.weibo.cn/search?q=x"),
+    ]
+
+    class _Stub(Source):
+        name = "stub_trending"
+        supports_trending = True
+
+        async def fetch(self, query, days, limit):
+            return []
+
+        async def fetch_trending(self, limit):
+            return fake_rows
+
+    pl.SOURCES["stub_trending"] = _Stub()
+    try:
+        items, reports = await pl.run_trending(["stub_trending"], 5, AsyncMock())
+        assert items and items[0].title == "热搜一"
+        assert reports[0].status == "ok"
+        assert reports[0].count == 1
+        # None sources = all available supports_trending sources (includes stub)
+        from reach_mcp.sources.base import SOURCES as _S
+
+        assert "stub_trending" in [s.name for s in _S.values() if s.supports_trending]
+    finally:
+        del pl.SOURCES["stub_trending"]
+
+
+@pytest.mark.asyncio
+async def test_run_trending_skips_non_trending_sources():
+    """A source without trending support is reported as skipped, not errored."""
+    from unittest.mock import AsyncMock
+
+    import reach_mcp.pipeline as pl
+
+    class _NoTrend(Source):
+        name = "stub_notrend"
+
+        async def fetch(self, query, days, limit):
+            return []
+
+    pl.SOURCES["stub_notrend"] = _NoTrend()
+    try:
+        items, reports = await pl.run_trending(["stub_notrend"], 5, AsyncMock())
+        assert items == []
+        assert reports[0].status == "skipped"
+    finally:
+        del pl.SOURCES["stub_notrend"]

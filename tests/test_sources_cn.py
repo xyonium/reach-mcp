@@ -11,10 +11,18 @@ from reach_mcp.sources.base import Row, set_client
 @pytest.mark.asyncio
 async def test_v2ex_parses_topics():
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value=[{
-        "id": 1, "title": "Python tips", "url": "https://v2ex.com/t/1",
-        "member": {"username": "u"}, "created": 1751328000, "replies": 3,
-    }])
+    c.get_json = AsyncMock(
+        return_value=[
+            {
+                "id": 1,
+                "title": "Python tips",
+                "url": "https://v2ex.com/t/1",
+                "member": {"username": "u"},
+                "created": 1751328000,
+                "replies": 3,
+            }
+        ]
+    )
     set_client(c)
     rows = await get_source("v2ex").fetch("python", 30, 10)
     assert rows and rows[0].title == "Python tips" and rows[0].engagement["replies"] == 3
@@ -27,9 +35,20 @@ async def test_xueqiu_api_primary_without_cli(monkeypatch):
     monkeypatch.delenv("XUEQIU_COOKIE", raising=False)
     monkeypatch.setattr(
         "reach_mcp.sources.xueqiu._fetch_via_api",
-        AsyncMock(return_value=[Row(source="xueqiu", id="AAPL", title="Apple Inc.",
-                                    url="https://xueqiu.com/S/AAPL",
-                                    author=None, date=None, engagement={}, text="")]),
+        AsyncMock(
+            return_value=[
+                Row(
+                    source="xueqiu",
+                    id="AAPL",
+                    title="Apple Inc.",
+                    url="https://xueqiu.com/S/AAPL",
+                    author=None,
+                    date=None,
+                    engagement={},
+                    text="",
+                )
+            ]
+        ),
     )
     rows = await get_source("xueqiu").fetch("AAPL", 30, 10)
     assert rows and rows[0].title == "Apple Inc."
@@ -43,15 +62,37 @@ async def test_xueqiu_merges_opencli_boost(monkeypatch):
     monkeypatch.delenv("XUEQIU_COOKIE", raising=False)
     monkeypatch.setattr(
         "reach_mcp.sources.xueqiu._fetch_via_cli",
-        AsyncMock(return_value=[Row(source="xueqiu", id="TSLA", title="Tesla",
-                                    url="https://xueqiu.com/S/TSLA",
-                                    author=None, date=None, engagement={}, text="")]),
+        AsyncMock(
+            return_value=[
+                Row(
+                    source="xueqiu",
+                    id="TSLA",
+                    title="Tesla",
+                    url="https://xueqiu.com/S/TSLA",
+                    author=None,
+                    date=None,
+                    engagement={},
+                    text="",
+                )
+            ]
+        ),
     )
     monkeypatch.setattr(
         "reach_mcp.sources.xueqiu._fetch_via_api",
-        AsyncMock(return_value=[Row(source="xueqiu", id="AAPL", title="Apple",
-                                    url="https://xueqiu.com/S/AAPL",
-                                    author=None, date=None, engagement={}, text="")]),
+        AsyncMock(
+            return_value=[
+                Row(
+                    source="xueqiu",
+                    id="AAPL",
+                    title="Apple",
+                    url="https://xueqiu.com/S/AAPL",
+                    author=None,
+                    date=None,
+                    engagement={},
+                    text="",
+                )
+            ]
+        ),
     )
     rows = await get_source("xueqiu").fetch("stock", 30, 10)
     titles = [r.title for r in rows]
@@ -63,10 +104,20 @@ async def test_bilibili_uses_search_api(monkeypatch):
     monkeypatch.setattr("reach_mcp.sources.bilibili._has_cli", lambda: False)
     monkeypatch.setattr(
         "reach_mcp.sources.bilibili._fetch_via_api",
-        AsyncMock(return_value=[Row(
-            source="bilibili", id="BV1", title="Vid", url="https://b23.tv/1",
-            author="up", date=None, engagement={"play": 100}, text="",
-        )]),
+        AsyncMock(
+            return_value=[
+                Row(
+                    source="bilibili",
+                    id="BV1",
+                    title="Vid",
+                    url="https://b23.tv/1",
+                    author="up",
+                    date=None,
+                    engagement={"play": 100},
+                    text="",
+                )
+            ]
+        ),
     )
     rows = await get_source("bilibili").fetch("ai", 30, 10)
     assert rows and rows[0].engagement["play"] == 100
@@ -75,8 +126,17 @@ async def test_bilibili_uses_search_api(monkeypatch):
 @pytest.mark.asyncio
 async def test_youtube_shells_to_ytdlp(monkeypatch):
     async def fake_search(query, limit):
-        return [{"id": "yt1", "title": query, "url": "https://youtu.be/1",
-                 "text": "transcript", "date": None, "engagement": {}}]
+        return [
+            {
+                "id": "yt1",
+                "title": query,
+                "url": "https://youtu.be/1",
+                "text": "transcript",
+                "date": None,
+                "engagement": {},
+            }
+        ]
+
     monkeypatch.setattr("reach_mcp.sources.youtube._search_videos", fake_search)
     rows = await get_source("youtube").fetch("rust", 30, 5)
     assert rows and rows[0].text == "transcript"
@@ -122,23 +182,47 @@ async def test_weibo_parses_search_cards(monkeypatch):
     """Happy path: visitor cookies exist, getIndex returns cards with mblogs."""
     monkeypatch.setattr(
         "reach_mcp.sources.weibo._visitor_cookies",
-        AsyncMock(return_value={"SUB": "x", "SUBP": "y"}))
+        AsyncMock(return_value={"SUB": "x", "SUBP": "y"}),
+    )
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"ok": 1, "data": {"cards": [
-        {"mblog": {
-            "id": "5112", "bid": "AbCdEf",
-            "text": "AI 长文要点 <br />人工智能",
-            "created_at": "Tue Aug 25 12:00:00 +0800 2026",
-            "user": {"screen_name": "人民日报"},
-            "reposts_count": 10, "comments_count": 5, "attitudes_count": 100,
-        }},
-        {"card_type": 11, "card_group": [
-            {"mblog": {"id": "5113", "bid": "XyZ", "text": "第二条",
-                        "created_at": "Tue Aug 25 13:00:00 +0800 2026",
-                        "user": {"screen_name": "胡锡进"},
-                        "reposts_count": 1, "comments_count": 2, "attitudes_count": 3}},
-        ]},
-    ]}})
+    c.get_json = AsyncMock(
+        return_value={
+            "ok": 1,
+            "data": {
+                "cards": [
+                    {
+                        "mblog": {
+                            "id": "5112",
+                            "bid": "AbCdEf",
+                            "text": "AI 长文要点 <br />人工智能",
+                            "created_at": "Tue Aug 25 12:00:00 +0800 2026",
+                            "user": {"screen_name": "人民日报"},
+                            "reposts_count": 10,
+                            "comments_count": 5,
+                            "attitudes_count": 100,
+                        }
+                    },
+                    {
+                        "card_type": 11,
+                        "card_group": [
+                            {
+                                "mblog": {
+                                    "id": "5113",
+                                    "bid": "XyZ",
+                                    "text": "第二条",
+                                    "created_at": "Tue Aug 25 13:00:00 +0800 2026",
+                                    "user": {"screen_name": "胡锡进"},
+                                    "reposts_count": 1,
+                                    "comments_count": 2,
+                                    "attitudes_count": 3,
+                                }
+                            },
+                        ],
+                    },
+                ]
+            },
+        }
+    )
     set_client(c)
     rows = await get_source("weibo").fetch("人工智能", 30, 10)
     assert len(rows) == 2
@@ -165,15 +249,30 @@ async def test_weibo_regenerates_cookie_on_auth_failure(monkeypatch):
     monkeypatch.setattr("reach_mcp.sources.weibo._visitor_cookies", fake_cookies)
     monkeypatch.setattr("reach_mcp.sources.weibo._reset_cookie_cache", lambda: None)
     c = AsyncMock()
-    c.get_json = AsyncMock(side_effect=[
-        {"ok": -100},  # first attempt: stale cookie
-        {"ok": 1, "data": {"cards": [{"mblog": {
-            "id": "1", "bid": "B", "text": "t",
-            "created_at": "Tue Aug 25 12:00:00 +0800 2026",
-            "user": {"screen_name": "u"},
-            "reposts_count": 0, "comments_count": 0, "attitudes_count": 0,
-        }}]}},
-    ])
+    c.get_json = AsyncMock(
+        side_effect=[
+            {"ok": -100},  # first attempt: stale cookie
+            {
+                "ok": 1,
+                "data": {
+                    "cards": [
+                        {
+                            "mblog": {
+                                "id": "1",
+                                "bid": "B",
+                                "text": "t",
+                                "created_at": "Tue Aug 25 12:00:00 +0800 2026",
+                                "user": {"screen_name": "u"},
+                                "reposts_count": 0,
+                                "comments_count": 0,
+                                "attitudes_count": 0,
+                            }
+                        }
+                    ]
+                },
+            },
+        ]
+    )
     set_client(c)
     rows = await get_source("weibo").fetch("ai", 30, 10)
     assert calls["n"] == 2 and len(rows) == 1  # regen happened, second call succeeded
@@ -181,9 +280,7 @@ async def test_weibo_regenerates_cookie_on_auth_failure(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_weibo_returns_empty_when_visitor_flow_fails(monkeypatch):
-    monkeypatch.setattr(
-        "reach_mcp.sources.weibo._visitor_cookies",
-        AsyncMock(return_value=None))
+    monkeypatch.setattr("reach_mcp.sources.weibo._visitor_cookies", AsyncMock(return_value=None))
     rows = await get_source("weibo").fetch("ai", 30, 10)
     assert rows == []
 
@@ -192,20 +289,30 @@ async def test_weibo_returns_empty_when_visitor_flow_fails(monkeypatch):
 async def test_zhihu_parses_hot_list():
     """api.zhihu.com/topstory/hot-lists/total works without login (verified)."""
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": [
-        {"target": {
-            "id": 2076281057649718231,
-            "title": "帮扶老人被索赔事件，怎样看待这一结果？",
-            "url": "https://api.zhihu.com/questions/2076281057649718231",
-            "follower_count": 604,
-            "answer_count": 192,
-        }},
-        {"target": {
-            "id": 2, "title": "电视台的新闻主播会是第一个被AI彻底取代的职业岗位吗？",
-            "url": "https://api.zhihu.com/questions/2",
-            "follower_count": 141, "answer_count": 55,
-        }},
-    ]})
+    c.get_json = AsyncMock(
+        return_value={
+            "data": [
+                {
+                    "target": {
+                        "id": 2076281057649718231,
+                        "title": "帮扶老人被索赔事件，怎样看待这一结果？",
+                        "url": "https://api.zhihu.com/questions/2076281057649718231",
+                        "follower_count": 604,
+                        "answer_count": 192,
+                    }
+                },
+                {
+                    "target": {
+                        "id": 2,
+                        "title": "电视台的新闻主播会是第一个被AI彻底取代的职业岗位吗？",
+                        "url": "https://api.zhihu.com/questions/2",
+                        "follower_count": 141,
+                        "answer_count": 55,
+                    }
+                },
+            ]
+        }
+    )
     set_client(c)
     rows = await get_source("zhihu").fetch("AI", 30, 10)
     assert len(rows) == 1  # only the AI-matching item passes the filter
@@ -220,12 +327,30 @@ async def test_zhihu_parses_hot_list():
 async def test_zhihu_empty_query_returns_top_items():
     """Empty/short query = theme browse: return the hot list unfiltered."""
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": [
-        {"target": {"id": 1, "title": "问题一", "url": "https://api.zhihu.com/questions/1",
-                     "follower_count": 10, "answer_count": 2}},
-        {"target": {"id": 2, "title": "问题二", "url": "https://api.zhihu.com/questions/2",
-                     "follower_count": 20, "answer_count": 4}},
-    ]})
+    c.get_json = AsyncMock(
+        return_value={
+            "data": [
+                {
+                    "target": {
+                        "id": 1,
+                        "title": "问题一",
+                        "url": "https://api.zhihu.com/questions/1",
+                        "follower_count": 10,
+                        "answer_count": 2,
+                    }
+                },
+                {
+                    "target": {
+                        "id": 2,
+                        "title": "问题二",
+                        "url": "https://api.zhihu.com/questions/2",
+                        "follower_count": 20,
+                        "answer_count": 4,
+                    }
+                },
+            ]
+        }
+    )
     set_client(c)
     rows = await get_source("zhihu").fetch("", 30, 10)
     assert len(rows) == 2  # unfiltered hot list
@@ -235,11 +360,21 @@ async def test_zhihu_empty_query_returns_top_items():
 async def test_zhihu_falls_back_to_top_items_when_no_match():
     """Query matches nothing -> degrade to top hot items (like v2ex would 0 out)."""
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": [
-        {"target": {"id": 1, "title": "帮扶老人被索赔事件",
-                     "url": "https://api.zhihu.com/questions/1",
-                     "follower_count": 10, "answer_count": 2}},
-    ]})
+    c.get_json = AsyncMock(
+        return_value={
+            "data": [
+                {
+                    "target": {
+                        "id": 1,
+                        "title": "帮扶老人被索赔事件",
+                        "url": "https://api.zhihu.com/questions/1",
+                        "follower_count": 10,
+                        "answer_count": 2,
+                    }
+                },
+            ]
+        }
+    )
     set_client(c)
     rows = await get_source("zhihu").fetch("量子计算", 30, 10)
     assert rows and rows[0].title == "帮扶老人被索赔事件"  # fallback: hot list itself
@@ -251,20 +386,29 @@ async def test_zhihu_search_via_cookie(monkeypatch):
     x-zse-96 signature needed when the request carries a logged-in cookie)."""
     monkeypatch.setenv("ZHIHU_COOKIE", "z_c0=abc; d_c0=def")
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": [
-        {"type": "gaokao", "object": {"type": "major"}},          # noise: skipped
-        {"type": "hot_timing", "object": {}},                      # noise: skipped
-        {"type": "search_result", "object": {
-            "type": "answer", "id": "2074807194219033769",
-            "question": {"id": 42, "title": "人工智能的本质是不是就是数学？"},
-            "title": "",
-            "excerpt": "军事是最早相信<em>人工智能</em>的",
-            "url": "https://api.zhihu.com/answers/2074807194219033769",
-            "voteup_count": 4, "comment_count": 0,
-            "created_time": 1787452583,
-        }},
-        {"type": "knowledge_ad", "object": {}},                    # ad: skipped
-    ]})
+    c.get_json = AsyncMock(
+        return_value={
+            "data": [
+                {"type": "gaokao", "object": {"type": "major"}},  # noise: skipped
+                {"type": "hot_timing", "object": {}},  # noise: skipped
+                {
+                    "type": "search_result",
+                    "object": {
+                        "type": "answer",
+                        "id": "2074807194219033769",
+                        "question": {"id": 42, "title": "人工智能的本质是不是就是数学？"},
+                        "title": "",
+                        "excerpt": "军事是最早相信<em>人工智能</em>的",
+                        "url": "https://api.zhihu.com/answers/2074807194219033769",
+                        "voteup_count": 4,
+                        "comment_count": 0,
+                        "created_time": 1787452583,
+                    },
+                },
+                {"type": "knowledge_ad", "object": {}},  # ad: skipped
+            ]
+        }
+    )
     set_client(c)
     rows = await get_source("zhihu").fetch("人工智能", 30, 10)
     assert len(rows) == 1
@@ -285,14 +429,24 @@ async def test_zhihu_search_results_beat_hot_list(monkeypatch):
     """Cookie search takes priority over hot-list filtering."""
     monkeypatch.setenv("ZHIHU_COOKIE", "z_c0=abc")
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": [
-        {"type": "search_result", "object": {
-            "type": "article", "id": "9",
-            "title": "一篇专栏文章", "excerpt": "内容",
-            "url": "https://api.zhihu.com/articles/9",
-            "voteup_count": 1, "comment_count": 0,
-        }},
-    ]})
+    c.get_json = AsyncMock(
+        return_value={
+            "data": [
+                {
+                    "type": "search_result",
+                    "object": {
+                        "type": "article",
+                        "id": "9",
+                        "title": "一篇专栏文章",
+                        "excerpt": "内容",
+                        "url": "https://api.zhihu.com/articles/9",
+                        "voteup_count": 1,
+                        "comment_count": 0,
+                    },
+                },
+            ]
+        }
+    )
     set_client(c)
     rows = await get_source("zhihu").fetch("随便什么", 30, 10)
     assert rows and rows[0].title == "一篇专栏文章"
@@ -308,6 +462,7 @@ async def test_zhihu_search_failure_degrades_to_hotlist(monkeypatch):
 
     async def boom(*a, **k):
         raise RuntimeError("502 bad gateway")
+
     c = AsyncMock()
     calls = {"n": 0}
 
@@ -315,8 +470,12 @@ async def test_zhihu_search_failure_degrades_to_hotlist(monkeypatch):
         calls["n"] += 1
         if "search" in url:
             raise RuntimeError("502")
-        return {"data": [{"target": {"id": 7, "title": "热榜问题",
-                                      "follower_count": 5, "answer_count": 1}}]}
+        return {
+            "data": [
+                {"target": {"id": 7, "title": "热榜问题", "follower_count": 5, "answer_count": 1}}
+            ]
+        }
+
     c.get_json = AsyncMock(side_effect=get_json)
     set_client(c)
     rows = await get_source("zhihu").fetch("人工智能", 30, 10)
@@ -347,9 +506,13 @@ async def test_zhihu_rejected_cookie_stops_with_notice(monkeypatch):
 async def test_zhihu_clean_hotlist_path_clears_notice(monkeypatch):
     monkeypatch.delenv("ZHIHU_COOKIE", raising=False)
     c = AsyncMock()
-    c.get_json = AsyncMock(return_value={"data": [
-        {"target": {"id": 1, "title": "热榜问题", "follower_count": 5, "answer_count": 1}},
-    ]})
+    c.get_json = AsyncMock(
+        return_value={
+            "data": [
+                {"target": {"id": 1, "title": "热榜问题", "follower_count": 5, "answer_count": 1}},
+            ]
+        }
+    )
     set_client(c)
     src = get_source("zhihu")
     await src.fetch("热榜", 30, 10)
@@ -360,9 +523,7 @@ async def test_zhihu_clean_hotlist_path_clears_notice(monkeypatch):
 async def test_xueqiu_cookieless_sets_notice(monkeypatch):
     monkeypatch.delenv("XUEQIU_COOKIE", raising=False)
     monkeypatch.setattr("reach_mcp.sources.xueqiu._has_cli", lambda: False)
-    monkeypatch.setattr(
-        "reach_mcp.sources.xueqiu._fetch_via_api",
-        AsyncMock(return_value=[]))
+    monkeypatch.setattr("reach_mcp.sources.xueqiu._fetch_via_api", AsyncMock(return_value=[]))
     set_client(AsyncMock())
     src = get_source("xueqiu")
     await src.fetch("AAPL", 30, 10)
@@ -373,9 +534,120 @@ async def test_xueqiu_cookieless_sets_notice(monkeypatch):
 async def test_weibo_visitor_failure_sets_notice(monkeypatch):
     async def no_cookies():
         return None
+
     monkeypatch.setattr("reach_mcp.sources.weibo._visitor_cookies", no_cookies)
     set_client(AsyncMock())
     src = get_source("weibo")
     rows = await src.fetch("ai", 30, 10)
     assert rows == []
     assert src.last_notice and "visitor" in src.last_notice
+
+
+@pytest.mark.asyncio
+async def test_weibo_fetch_trending(monkeypatch):
+    """realtimehot endpoint returns hot searches with heat values."""
+    monkeypatch.setattr(
+        "reach_mcp.sources.weibo._visitor_cookies",
+        AsyncMock(return_value={"SUB": "x", "SUBP": "y"}),
+    )
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "ok": 1,
+            "data": {
+                "cards": [
+                    {
+                        "card_group": [
+                            {
+                                "desc": "台风沙德尔登陆",
+                                "desc_extr": "1118210",
+                                "scheme": "https://m.weibo.cn/search?containerid=100103type%3D1%26q%3D%23台风%23",
+                            },
+                            {
+                                "desc": "苹果6款新品前瞻",
+                                "desc_extr": "800787",
+                                "scheme": "https://m.weibo.cn/search?containerid=x",
+                            },
+                        ]
+                    },
+                ]
+            },
+        }
+    )
+    set_client(c)
+    rows = await get_source("weibo").fetch_trending(10)
+    assert len(rows) == 2
+    r = rows[0]
+    assert r.source == "weibo" and r.title == "台风沙德尔登陆"
+    assert r.engagement["heat"] == 1118210
+    assert "m.weibo.cn/search" in r.url
+    # realtimehot containerid used
+    cid = c.get_json.call_args.kwargs["params"]["containerid"]
+    assert "realtimehot" in cid
+
+
+@pytest.mark.asyncio
+async def test_zhihu_fetch_trending_reuses_hotlist():
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "data": [
+                {"target": {"id": 1, "title": "热榜问题", "follower_count": 5, "answer_count": 2}},
+            ]
+        }
+    )
+    set_client(c)
+    rows = await get_source("zhihu").fetch_trending(10)
+    assert rows and rows[0].title == "热榜问题"
+    assert rows[0].engagement["answers"] == 2
+
+
+@pytest.mark.asyncio
+async def test_hackernews_fetch_trending_front_page():
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "hits": [
+                {
+                    "objectID": "1",
+                    "title": "Nvidia acquires Hugging Face",
+                    "url": "https://example.com",
+                    "points": 1834,
+                    "num_comments": 42,
+                    "created_at": "2026-08-28T10:00:00Z",
+                    "author": "who",
+                },
+            ]
+        }
+    )
+    set_client(c)
+    rows = await get_source("hackernews").fetch_trending(10)
+    assert rows and rows[0].engagement["points"] == 1834
+    assert "front_page" in c.get_json.call_args.kwargs["params"]["tags"]
+
+
+@pytest.mark.asyncio
+async def test_bilibili_fetch_trending_ranking():
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "code": 0,
+            "data": {
+                "list": [
+                    {
+                        "bvid": "BV1x",
+                        "title": "热门视频",
+                        "pic": "",
+                        "owner": {"name": "up主"},
+                        "stat": {"view": 1000, "like": 100, "danmaku": 5},
+                        "pubdate": 1787880000,
+                    },
+                ]
+            },
+        }
+    )
+    set_client(c)
+    rows = await get_source("bilibili").fetch_trending(10)
+    assert rows and rows[0].title == "热门视频"
+    assert rows[0].engagement["play"] == 1000
+    assert rows[0].url == "https://www.bilibili.com/video/BV1x"

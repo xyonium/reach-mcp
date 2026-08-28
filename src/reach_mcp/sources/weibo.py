@@ -168,9 +168,53 @@ class Weibo(Source):
     name = "weibo"
     description = (
         "微博 Weibo search via the mobile API (m.weibo.cn) with auto-rotated "
-        "visitor cookies — free, no login."
+        "visitor cookies — free, no login. Also exposes 实时热搜 realtimehot."
     )
     host = "m.weibo.cn"
+    supports_trending = True
+
+    async def fetch_trending(self, limit: int) -> list[Row]:
+        """实时热搜 via filter_type=realtimehot (same visitor cookies)."""
+        client = get_client()
+        self.last_notice = None
+        cookies = await _visitor_cookies()
+        if not cookies:
+            self.last_notice = (
+                "weibo trending unavailable — visitor cookie flow failed "
+                "(genvisitor2 unreachable or blocked)"
+            )
+            return []
+        headers = {**_HEADERS, "Cookie": f"SUB={cookies['SUB']}; SUBP={cookies['SUBP']}"}
+        params = {
+            "containerid": "106003type=25&t=3&disable_hot=1&filter_type=realtimehot",
+        }
+        data = await client.get_json(_SEARCH_URL, params=params, headers=headers)
+        if data.get("ok") != 1:
+            raise RuntimeError(f"weibo trending auth failure: ok={data.get('ok')}")
+        rows: list[Row] = []
+        for card in (data.get("data") or {}).get("cards") or []:
+            for g in card.get("card_group") or [card]:
+                desc = (g.get("desc") or "").strip()
+                if not desc:
+                    continue
+                scheme = g.get("scheme") or ""
+                heat = g.get("desc_extr")
+                rows.append(
+                    Row(
+                        source="weibo",
+                        id=f"hot:{desc}",
+                        title=desc,
+                        url=scheme
+                        or f"https://m.weibo.cn/search?containerid=100103type=1&q={desc}",
+                        author=None,
+                        date=None,
+                        engagement={"heat": int(heat) if str(heat).isdigit() else 0},
+                        text="微博实时热搜" if not str(heat).isdigit() else f"热度 {heat}",
+                    )
+                )
+                if len(rows) >= limit:
+                    return rows
+        return rows
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         client = get_client()

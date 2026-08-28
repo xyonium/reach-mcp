@@ -19,6 +19,7 @@ from reach_mcp.pipeline import (
     import_all_sources,
     render_source_summary,
     run_search,
+    run_trending,
 )
 from reach_mcp.sources import SOURCES
 from reach_mcp.sources.base import Item, set_client
@@ -52,6 +53,12 @@ _SEARCH_DESC = (
     "keywords work best for the CN sources. For WeChat 公众号 articles, use the "
     "web source with 公众号 in the query (auto-scoped to mp.weixin.qq.com) — "
     "there is no dedicated wechat source.\n\n"
+    "TRENDING (热搜/热榜): set trending=true to fetch what's hot RIGHT NOW "
+    "instead of searching — weibo 实时热搜 (with heat values), zhihu 热榜, "
+    "hackernews front page, bilibili 综合热门 ranking. `query` is IGNORED in "
+    'this mode (pass ""); `sources` still scopes (e.g. sources=["weibo"]). '
+    "Use it for 'what's trending on weibo', '今日热搜', or to seed a topic "
+    "before a keyword search.\n\n"
     "CREDENTIAL HEALTH: if source_summary carries NOTICE lines, that source "
     "degraded (e.g. a stale login cookie fell back to a limited public path). "
     "Results are still usable, but mention the notice when it matters and "
@@ -211,9 +218,22 @@ def build_mcp(settings: Settings) -> FastMCP:
         max_per_source: int = 20,
         max_chars_per_item: int = 500,
         synthesize: bool = True,
+        trending: bool = False,
     ) -> dict:
         client = PoliteClient(settings)
         try:
+            if trending:
+                items, reports = await run_trending(
+                    sources or expand_categories(sources, category),
+                    max_per_source,
+                    client,
+                )
+                return {
+                    "brief": None,
+                    "items": [_item_to_dict(i) for i in items],
+                    "sources_used": [_source_report_to_dict(r) for r in reports],
+                    "source_summary": render_source_summary(reports),
+                }
             items, reports = await run_search(
                 query,
                 expand_categories(sources, category),
