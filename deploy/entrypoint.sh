@@ -140,6 +140,38 @@ done
 # and install the Chrome extension separately. Without it, those sources use their
 # server-side backends (Apify / public APIs / Searxng) which is the intended default.
 
+# ========== 7b. TikTok free backend (playwright + chromium, persisted) ==========
+# reach-mcp's tiktok source prefers a free headless-chromium in-page fetch over
+# the paid Apify actors. Two persisted pieces under /config (the mounted volume):
+#   - the playwright PYTHON package: NOT installed here — it rides in via
+#     mcpo config.json launching reach with
+#       "args": ["uvx", "--refresh", "--from", "reach-mcp[tiktok]", "reach-mcp", ...]
+#     so uv resolves it into reach-mcp's own environment (a bare `uv tool
+#     install playwright` would land in an isolated env the server can't import).
+#   - the chromium BINARY (~400MB): installed below into
+#     PLAYWRIGHT_BROWSERS_PATH=/config/ms-playwright so it survives container
+#     recreation. Skipped when the marker version file matches (upgrades flow
+#     through the /config/UPGRADE flag like everything else).
+export PLAYWRIGHT_BROWSERS_PATH=/config/ms-playwright
+PW_MARKER="/config/ms-playwright/.chromium-ok"
+if [ ! -f "$PW_MARKER" ]; then
+  echo "[mcpo] installing chromium for the tiktok free backend (one-time, ~400MB) ..."
+  # uvx runs reach-mcp[tiktok] in an ephemeral env; use an isolated venv on the
+  # volume purely as the installer/driver host. Its driver binary is what
+  # reach-mcp's playwright import talks to at runtime.
+  if [ ! -x /config/pwenv/bin/python ]; then
+    uv venv /config/pwenv >/dev/null 2>&1 || python3 -m venv /config/pwenv
+    uv pip install --python /config/pwenv/bin/python playwright >/dev/null 2>&1 \
+      || /config/pwenv/bin/pip install -q playwright
+  fi
+  /config/pwenv/bin/python -m playwright install --with-deps chromium \
+    && touch "$PW_MARKER" \
+    && echo "[mcpo] chromium installed -> $PLAYWRIGHT_BROWSERS_PATH" \
+    || echo "[mcpo] chromium install FAILED — tiktok falls back to Apify (non-fatal)"
+else
+  echo "[mcpo] chromium already present ($PLAYWRIGHT_BROWSERS_PATH), skip"
+fi
+
 # ========== 8. uv constraints (pin mcp SDK <2 for mcpo + its child servers) ==========
 # mcpo 0.0.20 (and many uvx-launched MCP servers like mcp-server-fetch) import
 # 1.x mcp SDK symbols that mcp 2.0 renamed, so uv resolving mcp 2.x crashes them

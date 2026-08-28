@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reach-mcp"
-version = "0.3.1"
+version = "0.4.0"
 description = "Multi-source search MCP server for AI agents. Search Reddit, X, YouTube, HN, GitHub, arXiv, Polymarket, 雪球, V2EX, B站, 小宇宙 & more — 26 sources across Chinese & English platforms with adjustable time window, source/category scoping, and optional LLM synthesis."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,6 +27,13 @@ dev = [
     "anyio>=4",
     "ruff>=0.6",
     "build>=1.2",
+]
+# Optional TikTok free backend: headless-chromium in-page fetch. Install with
+# `pip install 'reach-mcp[tiktok]'`, then `playwright install chromium` (set
+# PLAYWRIGHT_BROWSERS_PATH to keep the ~400MB browser on a persistent volume).
+# Without the extra, the tiktok source falls back to Apify/OpenCLI/ScrapeCreators.
+tiktok = [
+    "playwright>=1.40",
 ]
 
 [project.scripts]
