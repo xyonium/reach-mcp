@@ -1,6 +1,6 @@
 # reach-mcp
 
-> A controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, Hacker News, GitHub, arXiv, Polymarket, 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙 and more -- **you pick the sources, the window, and whether to synthesize.** 32 sources across Chinese & English platforms, with adjustable time window, source/category scoping, trending hot lists (微博/知乎/头条热搜...), and optional LLM synthesis.
+> A controllable multi-source search MCP server for AI agents. Search Reddit, X, YouTube, Hacker News, GitHub, arXiv, Polymarket, 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙 and more -- **you pick the sources, the window, and whether to synthesize.** 33 sources across Chinese & English platforms, with adjustable time window, source/category scoping, trending hot lists (微博/知乎/头条热搜...), and optional LLM synthesis.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-green.svg?logo=python&logoColor=white)](https://www.python.org/)
@@ -22,7 +22,7 @@
 - 🌐 **Chinese & English sources in one call** -- 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙, 小红书 alongside Reddit, X, YouTube, HN, GitHub, arXiv and the rest.
 - 🛡️ **Polite by default** -- per-host pacing, honors `Retry-After`, bounded timeouts. Never hammers a site.
 
-## Sources (32)
+## Sources (33)
 
 | Tier | Source | Backend | Credential |
 |------|------|------|------|
@@ -49,6 +49,7 @@
 | | `zhihu` | search via `ZHIHU_COOKIE`; hot-list via mobile API | `ZHIHU_COOKIE` (optional — unlocks real search) |
 | | `douban` | mobile rexxar API (movies/TV/books/music + ratings) | none |
 | | `toutiao` | hot-board JSON API + search SSR scrape | none |
+| | `linuxdo` | playwright + login cookie (Cloudflare-gated Discourse) | `LINUXDO_COOKIE` (login) + playwright/chromium |
 | **Login-gated** *(off by default)* | `x` | cookies | `AUTH_TOKEN`/`CT0` |
 | | `truthsocial` | Mastodon API | `TRUTHSOCIAL_TOKEN` |
 | | `linkedin` | Apify (public posts) + Searxng fallback + ScrapeCreators (optional) | `APIFY_API_TOKEN` ($5/mo); `SEARXNG_URL` for fallback; `SCRAPECREATORS_API_KEY` optional |
@@ -92,7 +93,7 @@ often return `[]` — the backend isn't broken, the query is too specific.
 ### `search` -- the primary tool
 
 **Description:**
-> Search up to 32 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
+> Search up to 33 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
 >
 > Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, weibo, zhihu, douban, toutiao; it: github, hackernews, v2ex, rss, arxiv, dripstack, stackoverflow, lobsters; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
 >
@@ -206,7 +207,7 @@ OpenWebUI then connects to `http://mcp:8000/reach` (OpenAPI) or `http://mcp:8000
 
 > **OpenWebUI tool description (copy-paste):** OpenWebUI lets you override a tool's human-facing description. The one below matches reach-mcp's actual categories and defaults — paste it into the tool's description field so users see what the server can do:
 >
-> > 一次查询横跨 32 中英文信息源 —— 社媒通用（全网搜索、小红书、微博、知乎、豆瓣、头条、B站、X/Twitter、Reddit、Instagram、Threads、TikTok、YouTube、Pinterest、Bluesky、LinkedIn、quora）、IT 技术（GitHub、Hacker News、V2EX、RSS、arXiv、Dripstack、Stack Overflow、Lobste.rs）、科技（arXiv、Techmeme、Digg、Dripstack、Hacker News）、政经（雪球、Truth Social、Stocktwits、Polymarket）、播客（小宇宙——转录较慢，按需启用）。热搜热榜模式：微博实时热搜、知乎热榜、头条热榜、B站热门、X trends、GitHub 周热榜、HN front page、Lobste.rs 热门。
+> > 一次查询横跨 33 中英文信息源 —— 社媒通用（全网搜索、小红书、微博、知乎、豆瓣、头条、linux.do、B站、X/Twitter、Reddit、Instagram、Threads、TikTok、YouTube、Pinterest、Bluesky、LinkedIn、quora）、IT 技术（GitHub、Hacker News、V2EX、RSS、arXiv、Dripstack、Stack Overflow、Lobste.rs）、科技（arXiv、Techmeme、Digg、Dripstack、Hacker News）、政经（雪球、Truth Social、Stocktwits、Polymarket）、播客（小宇宙——转录较慢，按需启用）。热搜热榜模式：微博实时热搜、知乎热榜、头条热榜、linux.do 每日热门、B站热门、X trends、GitHub 周热榜、HN front page、Lobste.rs 热门。
 
 > **Upgrading deps:** `touch /config/UPGRADE` in the config dir, then restart the container -- the entrypoint clears its binary caches and reinstalls fresh (yt-dlp, bili-cli, pp-cli, etc.).
 >
