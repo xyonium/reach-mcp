@@ -243,3 +243,80 @@ async def test_zhihu_falls_back_to_top_items_when_no_match():
     set_client(c)
     rows = await get_source("zhihu").fetch("量子计算", 30, 10)
     assert rows and rows[0].title == "帮扶老人被索赔事件"  # fallback: hot list itself
+
+
+@pytest.mark.asyncio
+async def test_zhihu_search_via_cookie(monkeypatch):
+    """With ZHIHU_COOKIE, search_v3 returns real results (verified 2026-08: no
+    x-zse-96 signature needed when the request carries a logged-in cookie)."""
+    monkeypatch.setenv("ZHIHU_COOKIE", "z_c0=abc; d_c0=def")
+    c = AsyncMock()
+    c.get_json = AsyncMock(return_value={"data": [
+        {"type": "gaokao", "object": {"type": "major"}},          # noise: skipped
+        {"type": "hot_timing", "object": {}},                      # noise: skipped
+        {"type": "search_result", "object": {
+            "type": "answer", "id": "2074807194219033769",
+            "question": {"id": 42, "title": "人工智能的本质是不是就是数学？"},
+            "title": "",
+            "excerpt": "军事是最早相信<em>人工智能</em>的",
+            "url": "https://api.zhihu.com/answers/2074807194219033769",
+            "voteup_count": 4, "comment_count": 0,
+            "created_time": 1787452583,
+        }},
+        {"type": "knowledge_ad", "object": {}},                    # ad: skipped
+    ]})
+    set_client(c)
+    rows = await get_source("zhihu").fetch("人工智能", 30, 10)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r.source == "zhihu" and r.id == "2074807194219033769"
+    assert r.title == "人工智能的本质是不是就是数学？"
+    assert "人工智能" in r.text and "<em>" not in r.text
+    assert r.engagement["upvotes"] == 4 and r.engagement["comments"] == 0
+    assert r.url == "https://www.zhihu.com/question/42/answer/2074807194219033769"
+    assert (r.date or "").startswith("2026-")
+    # cookie header was sent
+    headers = c.get_json.call_args.kwargs.get("headers", {})
+    assert "z_c0=abc" in headers.get("Cookie", "")
+
+
+@pytest.mark.asyncio
+async def test_zhihu_search_results_beat_hot_list(monkeypatch):
+    """Cookie search takes priority over hot-list filtering."""
+    monkeypatch.setenv("ZHIHU_COOKIE", "z_c0=abc")
+    c = AsyncMock()
+    c.get_json = AsyncMock(return_value={"data": [
+        {"type": "search_result", "object": {
+            "type": "article", "id": "9",
+            "title": "一篇专栏文章", "excerpt": "内容",
+            "url": "https://api.zhihu.com/articles/9",
+            "voteup_count": 1, "comment_count": 0,
+        }},
+    ]})
+    set_client(c)
+    rows = await get_source("zhihu").fetch("随便什么", 30, 10)
+    assert rows and rows[0].title == "一篇专栏文章"
+    # hot-list endpoint was never called
+    assert "hot-lists" not in c.get_json.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_zhihu_search_failure_degrades_to_hotlist(monkeypatch):
+    """Cookie expired/blocked -> search errors must degrade to hot-list, not raise."""
+    monkeypatch.setenv("ZHIHU_COOKIE", "z_c0=stale")
+
+    async def boom(*a, **k):
+        raise RuntimeError("403 unhuman")
+    c = AsyncMock()
+    calls = {"n": 0}
+
+    async def get_json(url, **kwargs):
+        calls["n"] += 1
+        if "search" in url:
+            raise RuntimeError("403")
+        return {"data": [{"target": {"id": 7, "title": "热榜问题",
+                                      "follower_count": 5, "answer_count": 1}}]}
+    c.get_json = AsyncMock(side_effect=get_json)
+    set_client(c)
+    rows = await get_source("zhihu").fetch("人工智能", 30, 10)
+    assert rows and rows[0].title == "热榜问题"
