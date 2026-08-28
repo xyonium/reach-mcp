@@ -28,11 +28,11 @@ from reach_mcp.synthesize import brief, rerank
 log = logging.getLogger(__name__)
 
 _SEARCH_DESC = (
-    "Search up to 28 social & web sources in parallel, score by engagement, "
+    "Search up to 29 social & web sources in parallel, score by engagement, "
     "and synthesize a cited brief. YOU control scope.\n\n"
     "Best scoping: `category` — social: x, reddit, instagram, threads, tiktok, "
     "xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, quora, "
-    "weibo, zhihu; "
+    "weibo, zhihu, douban; "
     "it: github, hackernews, v2ex, rss, arxiv, dripstack; "
     "tech: arxiv, techmeme, digg, dripstack, hackernews; "
     "polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; "
@@ -46,7 +46,9 @@ _SEARCH_DESC = (
     "'latest/news/how-to' filler. Keyword-slot sources (bluesky, tiktok, "
     "instagram, pinterest, linkedin, quora, xiaohongshu, weibo) take a compact "
     "phrase. Semantic sources (reddit, web, arxiv, github, hackernews, youtube, "
-    "bilibili) tolerate longer natural phrasing; zhihu is hot-list browse "
+    "bilibili) tolerate longer natural phrasing; douban (豆瓣 movie/TV/book/"
+    "music ratings, keyless) and zhihu take Chinese titles/keywords; zhihu is "
+    "hot-list browse "
     "(filtering, not search — Chinese keywords work best). The pipeline already "
     "strips question/meta words per source and retries X with shorter variants, "
     "so lead with the core subject. Match query language to platform — Chinese "

@@ -718,3 +718,107 @@ async def test_github_fetch_trending_recent_stars():
     assert rows[0].engagement["language"] == "Python"
     q = c.get_json.call_args.kwargs["params"]["q"]
     assert "created:" in q and "sort" in c.get_json.call_args.kwargs["params"]
+
+
+@pytest.mark.asyncio
+async def test_douban_search_parses_rexxar_items():
+    """Douban search via m.douban.com/rexxar/api/v2/search — keyless with
+    iOS UA + Referer headers (verified live 2026-08-28)."""
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "subjects": {
+                "items": [
+                    {
+                        "layout": "subject",
+                        "target": {
+                            "id": "26647087",
+                            "title": "三体",
+                            "rating": {"count": 537712, "value": 8.7},
+                            "card_subtitle": "中国大陆 / 剧情 科幻 / 2023",
+                            "cover_url": "https://img.doubanio.com/x.jpg",
+                            "year": "2023",
+                        },
+                        "target_type": "tv",
+                        "type_name": "电视剧",
+                    },
+                    {
+                        "layout": "subject",
+                        "target": {
+                            "id": "2567676",
+                            "title": "三体（全集）",
+                            "rating": {"count": 123456, "value": 9.3},
+                            "card_subtitle": "刘慈欣 / 重庆出版社",
+                            "year": "2008",
+                        },
+                        "target_type": "book",
+                        "type_name": "图书",
+                    },
+                ]
+            }
+        }
+    )
+    set_client(c)
+    rows = await get_source("douban").fetch("三体", 30, 10)
+    assert len(rows) == 2
+    r = rows[0]
+    assert r.source == "douban"
+    assert r.title == "三体"
+    assert r.url == "https://movie.douban.com/subject/26647087/"
+    assert r.engagement["rating"] == 8.7
+    assert r.engagement["votes"] == 537712
+    assert r.engagement["type"] == "电视剧"
+    assert "三体" in c.get_json.call_args.kwargs["params"]["q"]
+    # anti-bot headers: iOS UA + m.douban.com Referer are REQUIRED (verified)
+    headers = c.get_json.call_args.kwargs["headers"]
+    assert "iPhone" in headers["User-Agent"]
+    assert headers["Referer"] == "https://m.douban.com/"
+
+
+@pytest.mark.asyncio
+async def test_douban_skips_non_subject_items():
+    """smart_box/ads layouts lack subject targets — must be skipped safely."""
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "subjects": {
+                "items": [
+                    {
+                        "layout": "market",
+                        "target": {"card_subtitle": "ad without id or title"},
+                    },
+                    {
+                        "layout": "subject",
+                        "target": {
+                            "id": "1",
+                            "title": "真实条目",
+                            "rating": {"value": 7.0, "count": 10},
+                        },
+                        "target_type": "movie",
+                        "type_name": "电影",
+                    },
+                ]
+            }
+        }
+    )
+    set_client(c)
+    rows = await get_source("douban").fetch("关键词", 30, 10)
+    assert len(rows) == 1
+    assert rows[0].title == "真实条目"
+
+
+@pytest.mark.asyncio
+async def test_douban_search_failure_sets_notice_and_recovers(monkeypatch):
+    """A rexxar failure degrades to empty (no hot-list equivalent) but sets a
+    notice; a subsequent clean call clears it (per-call notice contract)."""
+    c = AsyncMock()
+
+    async def get_json(url, **kwargs):
+        raise RuntimeError("500 server error")
+
+    c.get_json = AsyncMock(side_effect=get_json)
+    set_client(c)
+    src = get_source("douban")
+    rows = await src.fetch("三体", 30, 10)
+    assert rows == []
+    assert src.last_notice and "rexxar" in src.last_notice

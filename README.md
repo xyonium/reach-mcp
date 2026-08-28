@@ -45,6 +45,7 @@
 | | `xiaohongshu` | xiaohongshu-mcp companion | `XHS_MCP_URL` |
 | | `weibo` | mobile API (m.weibo.cn) + auto visitor cookies | none |
 | | `zhihu` | search via `ZHIHU_COOKIE`; hot-list via mobile API | `ZHIHU_COOKIE` (optional — unlocks real search) |
+| | `douban` | mobile rexxar API (movies/TV/books/music + ratings) | none |
 | **Login-gated** *(off by default)* | `x` | cookies | `AUTH_TOKEN`/`CT0` |
 | | `truthsocial` | Mastodon API | `TRUTHSOCIAL_TOKEN` |
 | | `linkedin` | Apify (public posts) + Searxng fallback + ScrapeCreators (optional) | `APIFY_API_TOKEN` ($5/mo); `SEARXNG_URL` for fallback; `SCRAPECREATORS_API_KEY` optional |
@@ -90,7 +91,7 @@ often return `[]` — the backend isn't broken, the query is too specific.
 **Description:**
 > Search up to 25 social & web sources in parallel, score by engagement, optionally synthesize a cited brief. YOU control scope.
 >
-> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, weibo, zhihu; it: github, hackernews, v2ex, rss, arxiv, dripstack; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
+> Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, weibo, zhihu, douban; it: github, hackernews, v2ex, rss, arxiv, dripstack; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
 >
 > Returns `{brief, items, sources_used, source_summary, available_sources}`. Each item: `{source, title, url, author, date, score, engagement, text}`. source_summary is one compact line per outcome -- 'x:3; reddit:5 | EMPTY: rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429) | NOTICE: zhihu(ZHIHU_COOKIE search failed — showing 热榜 instead; refresh the cookie)'; 'gated_off' means its credential env isn't set; NOTICE marks a degraded-but-working source (stale cookie fell back to a limited path) — usable data, but surface the caveat. Match query language to platform -- Chinese keywords work best for the CN sources. WeChat 公众号 queries on `web` auto-scope to mp.weixin.qq.com. Call list_sources if unsure what's configured.
 
@@ -390,6 +391,10 @@ Two tiers, both curl-verified 2026-08:
 Expired/invalid cookies degrade to the hot list automatically (warning logged), never error the search.
 
 > ⚠️ The cookie is a login credential — treat `ZHIHU_COOKIE` like a password. `z_c0` rotates if you log out; re-copy after re-login.
+
+#### Douban / 豆瓣 (no credentials)
+
+Free, keyless (live-verified 2026-08): keyword search across movies, TV, books, and music via the mobile `m.douban.com/rexxar/api/v2/search` API with an iOS User-Agent + `Referer: https://m.douban.com/` header (both required — the API rejects bare requests). Returns titles with rating value/vote count; canonical per-type URLs (`movie.douban.com/subject/...`, `book.douban.com/subject/...`). Ad/smart-box cards are filtered. No trending endpoint (Douban has no public hot-list API). Use Chinese keywords for best results.
 
 #### WeChat articles / 微信公众号 (via the `web` source, auto-scoped)
 
