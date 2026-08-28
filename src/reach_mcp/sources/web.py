@@ -4,17 +4,34 @@ Primary: Searxng JSON endpoint at SEARXNG_URL (free, unlimited, self-hosted).
 Optional boost: Brave Search API (BRAVE_API_KEY - $5 free credits every month,
 recurring). When a Brave key is set, both backends run in parallel and results
 are merged + deduped.
+
+WeChat-intent queries (公众号/微信文章/weixin) are auto-scoped with
+`site:mp.weixin.qq.com` on Searxng — Searxng indexes WeChat MP articles, and
+this is the only reliable way to search them (WeChat has no public search API).
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
+import re
 
 from reach_mcp.sources.base import Row, Source, get_client, register_source, snip
 
+# Queries that clearly want WeChat MP (微信公众号) articles. Substring CN terms
+# plus a word-boundary form for latin "weixin"/"weixin article" phrasings.
+_WECHAT_INTENT = re.compile(r"公众号|微信文章|微信公众平台|\bweixin\b", re.IGNORECASE)
+_WECHAT_SITE = "site:mp.weixin.qq.com"
+
+
+def _scope_wechat(query: str) -> str:
+    if _WECHAT_INTENT.search(query) and _WECHAT_SITE not in query:
+        return f"{query} {_WECHAT_SITE}"
+    return query
+
 
 def _searxng_params(query: str, days: int) -> dict:
-    p = {"q": query, "format": "json", "safesearch": 0}
+    p = {"q": _scope_wechat(query), "format": "json", "safesearch": 0}
     if 0 < days <= 365:
         p["time_range"] = f"{days}d"
     return p
@@ -24,19 +41,23 @@ async def _searxng_fetch(query: str, days: int, limit: int) -> list[Row]:
     client = get_client()
     base = os.environ.get("SEARXNG_URL", "http://searxng:8080").rstrip("/")
     try:
-        data = await client.get_json(
-            base + "/search", params=_searxng_params(query, days)
-        )
+        data = await client.get_json(base + "/search", params=_searxng_params(query, days))
     except Exception:
         return []
     rows: list[Row] = []
     for r in (data.get("results") or [])[:limit]:
-        rows.append(Row(
-            source="web", id=r.get("url") or "",
-            title=r.get("title") or "", url=r.get("url") or "",
-            author=None, date=r.get("publishedDate"),
-            engagement={}, text=snip(r.get("content") or ""),
-        ))
+        rows.append(
+            Row(
+                source="web",
+                id=r.get("url") or "",
+                title=r.get("title") or "",
+                url=r.get("url") or "",
+                author=None,
+                date=r.get("publishedDate"),
+                engagement={},
+                text=snip(r.get("content") or ""),
+            )
+        )
     return rows
 
 
@@ -54,19 +75,24 @@ async def _brave_fetch(query: str, days: int, limit: int) -> list[Row]:
         data = await client.get_json(
             "https://api.search.brave.com/res/v1/web/search",
             params=params,
-            headers={"Accept": "application/json",
-                     "X-Subscription-Token": key},
+            headers={"Accept": "application/json", "X-Subscription-Token": key},
         )
     except Exception:
         return []
     rows: list[Row] = []
     for r in (data.get("web", {}).get("results") or [])[:limit]:
-        rows.append(Row(
-            source="web", id=r.get("url") or "",
-            title=r.get("title") or "", url=r.get("url") or "",
-            author=None, date=r.get("age") or r.get("page_age"),
-            engagement={}, text=snip(r.get("description") or ""),
-        ))
+        rows.append(
+            Row(
+                source="web",
+                id=r.get("url") or "",
+                title=r.get("title") or "",
+                url=r.get("url") or "",
+                author=None,
+                date=r.get("age") or r.get("page_age"),
+                engagement={},
+                text=snip(r.get("description") or ""),
+            )
+        )
     return rows
 
 

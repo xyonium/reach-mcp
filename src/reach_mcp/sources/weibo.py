@@ -174,10 +174,23 @@ class Weibo(Source):
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         client = get_client()
+        self.last_notice = None
         try:
             rows = await _search_once(client, query, limit)
         except RuntimeError:
             # Stale/invalid visitor cookie: regenerate once and retry.
             _reset_cookie_cache()
-            rows = await _search_once(client, query, limit)
+            try:
+                rows = await _search_once(client, query, limit)
+            except RuntimeError as e:
+                # Both attempts failed even with fresh visitor cookies — that's
+                # an upstream/anti-bot shift, not a query problem.
+                self.last_notice = f"weibo visitor session rejected twice ({e})"
+                raise
+        if not rows and not self.last_notice:
+            # genvisitor2 dead => _visitor_cookies() returned None => empty rows
+            self.last_notice = (
+                "weibo returned 0 rows — visitor cookie flow may be failing "
+                "(genvisitor2 unreachable or blocked); check network egress"
+            )
         return rows

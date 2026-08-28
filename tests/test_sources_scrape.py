@@ -96,3 +96,31 @@ async def test_techmeme_parses_items():
     set_client(c)
     rows = await get_source("techmeme").fetch("ai", 30, 10)
     assert rows and "Headline" in rows[0].title
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("query", [
+    "人工智能 公众号",
+    "微信公众号 人工智能",
+    "微信文章 AI",
+    "AI weixin article",
+])
+async def test_web_wechat_intent_scopes_to_mp(query):
+    """WeChat-intent queries get site:mp.weixin.qq.com scoping on Searxng."""
+    c = AsyncMock()
+    c.get_json = AsyncMock(return_value={"results": [
+        {"title": "t", "url": "https://mp.weixin.qq.com/s/abc", "content": "c"}]})
+    set_client(c)
+    await get_source("web").fetch(query, 30, 10)
+    q = c.get_json.call_args.kwargs.get("params", {}).get("q", "")
+    assert "site:mp.weixin.qq.com" in q, f"intent query {query!r} not scoped"
+
+
+@pytest.mark.asyncio
+async def test_web_non_wechat_query_untouched():
+    c = AsyncMock()
+    c.get_json = AsyncMock(return_value={"results": []})
+    set_client(c)
+    await get_source("web").fetch("人工智能 最新进展", 30, 10)
+    q = c.get_json.call_args.kwargs.get("params", {}).get("q", "")
+    assert "site:" not in q

@@ -302,21 +302,80 @@ async def test_zhihu_search_results_beat_hot_list(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_zhihu_search_failure_degrades_to_hotlist(monkeypatch):
-    """Cookie expired/blocked -> search errors must degrade to hot-list, not raise."""
-    monkeypatch.setenv("ZHIHU_COOKIE", "z_c0=stale")
+    """Non-auth search failures (network hiccup, 5xx) still degrade to the
+    hot list."""
+    monkeypatch.setenv("ZHIHU_COOKIE", "z_c0=ok")
 
     async def boom(*a, **k):
-        raise RuntimeError("403 unhuman")
+        raise RuntimeError("502 bad gateway")
     c = AsyncMock()
     calls = {"n": 0}
 
     async def get_json(url, **kwargs):
         calls["n"] += 1
         if "search" in url:
-            raise RuntimeError("403")
+            raise RuntimeError("502")
         return {"data": [{"target": {"id": 7, "title": "热榜问题",
                                       "follower_count": 5, "answer_count": 1}}]}
     c.get_json = AsyncMock(side_effect=get_json)
     set_client(c)
     rows = await get_source("zhihu").fetch("人工智能", 30, 10)
     assert rows and rows[0].title == "热榜问题"
+
+
+@pytest.mark.asyncio
+async def test_zhihu_rejected_cookie_stops_with_notice(monkeypatch):
+    """A REJECTED cookie (401/403) stops the source with a notice — hot-list
+    is skipped because the WAF poisons the whole client after a bad login
+    cookie (verified: even cookie-free hot-list 401s right after)."""
+    monkeypatch.setenv("ZHIHU_COOKIE", "z_c0=stale")
+
+    async def fail_search(client, query, limit):
+        raise RuntimeError("401 unauthorized")
+
+    monkeypatch.setattr("reach_mcp.sources.zhihu._search", fail_search)
+    c = AsyncMock()
+    set_client(c)
+    src = get_source("zhihu")
+    rows = await src.fetch("人工智能", 30, 10)
+    assert rows == []
+    assert src.last_notice and "ZHIHU_COOKIE" in src.last_notice
+    c.get_json.assert_not_called()  # hot-list deliberately not attempted
+
+
+@pytest.mark.asyncio
+async def test_zhihu_clean_hotlist_path_clears_notice(monkeypatch):
+    monkeypatch.delenv("ZHIHU_COOKIE", raising=False)
+    c = AsyncMock()
+    c.get_json = AsyncMock(return_value={"data": [
+        {"target": {"id": 1, "title": "热榜问题", "follower_count": 5, "answer_count": 1}},
+    ]})
+    set_client(c)
+    src = get_source("zhihu")
+    await src.fetch("热榜", 30, 10)
+    assert src.last_notice is None  # no cookie configured: nothing to warn about
+
+
+@pytest.mark.asyncio
+async def test_xueqiu_cookieless_sets_notice(monkeypatch):
+    monkeypatch.delenv("XUEQIU_COOKIE", raising=False)
+    monkeypatch.setattr("reach_mcp.sources.xueqiu._has_cli", lambda: False)
+    monkeypatch.setattr(
+        "reach_mcp.sources.xueqiu._fetch_via_api",
+        AsyncMock(return_value=[]))
+    set_client(AsyncMock())
+    src = get_source("xueqiu")
+    await src.fetch("AAPL", 30, 10)
+    assert src.last_notice and "XUEQIU_COOKIE not set" in src.last_notice
+
+
+@pytest.mark.asyncio
+async def test_weibo_visitor_failure_sets_notice(monkeypatch):
+    async def no_cookies():
+        return None
+    monkeypatch.setattr("reach_mcp.sources.weibo._visitor_cookies", no_cookies)
+    set_client(AsyncMock())
+    src = get_source("weibo")
+    rows = await src.fetch("ai", 30, 10)
+    assert rows == []
+    assert src.last_notice and "visitor" in src.last_notice

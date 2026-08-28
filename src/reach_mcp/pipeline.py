@@ -1,4 +1,5 @@
 """Search pipeline: resolve sources, fan out, normalize, dedup, score, cluster."""
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,7 @@ def import_all_sources() -> None:
     """Populate the source registry. Delegates to the lazy loader in the
     sources package so there is one source of truth for discovery."""
     from reach_mcp.sources import _ensure_loaded  # noqa: PLC0415
+
     _ensure_loaded()
 
 
@@ -33,6 +35,10 @@ class SourceReport:
     status: str  # "ok" | "no_results" | "rate_limited" | "gated_off" | "errored" | "unknown"
     count: int = 0
     error: str | None = None
+    # Non-fatal caveat the agent should see even when the fetch "worked" —
+    # e.g. zhihu's cookie search degraded to the hot list, or a cookie-based
+    # source returned results that may be partial because a credential is stale.
+    notice: str | None = None
 
 
 # Topic categories for the `category` filter on the search tool. Mirrors the
@@ -42,9 +48,21 @@ class SourceReport:
 # slow (minutes), so it's opt-in rather than part of the default social sweep.
 CATEGORIES: dict[str, list[str]] = {
     "social": [
-        "x", "reddit", "instagram", "threads", "tiktok", "xiaohongshu",
-        "bilibili", "youtube", "pinterest", "bluesky", "linkedin", "web",
-        "quora", "weibo", "zhihu",
+        "x",
+        "reddit",
+        "instagram",
+        "threads",
+        "tiktok",
+        "xiaohongshu",
+        "bilibili",
+        "youtube",
+        "pinterest",
+        "bluesky",
+        "linkedin",
+        "web",
+        "quora",
+        "weibo",
+        "zhihu",
     ],
     "it": ["github", "hackernews", "v2ex", "rss", "arxiv", "dripstack"],
     "tech": ["arxiv", "techmeme", "digg", "dripstack", "hackernews"],
@@ -122,9 +140,16 @@ def _canonical_url(url: str) -> str:
 
 def _row_to_item(row: Row) -> Item:
     return Item(
-        source=row.source, id=row.id, title=row.title, url=row.url,
-        author=row.author, date=row.date, engagement=dict(row.engagement),
-        text=row.text, audio_url=row.audio_url, duration_min=row.duration_min,
+        source=row.source,
+        id=row.id,
+        title=row.title,
+        url=row.url,
+        author=row.author,
+        date=row.date,
+        engagement=dict(row.engagement),
+        text=row.text,
+        audio_url=row.audio_url,
+        duration_min=row.duration_min,
     )
 
 
@@ -199,18 +224,25 @@ def cluster(items: list[Item]) -> list[Item]:
     return items
 
 
-async def _fetch_one(source, query: str, days: int, limit: int,
-                     timeout: float = 90) -> tuple[list[Row], SourceReport]:
+async def _fetch_one(
+    source, query: str, days: int, limit: int, timeout: float = 90
+) -> tuple[list[Row], SourceReport]:
     if not source.available():
         return [], SourceReport(source=source.name, status="gated_off")
     # Adapt the raw query to this source's matching semantics: literal-AND /
     # keyword-slot sources collapse a verbose question to its core subject,
     # semantic sources pass through. See query_core for the policy.
     q = adapt_query(source.name, query)
+    source.last_notice = None  # notices are per-call, never sticky
     try:
         rows = await asyncio.wait_for(source.fetch(q, days, limit), timeout=timeout)
         status = "ok" if rows else "no_results"
-        return rows, SourceReport(source=source.name, status=status, count=len(rows))
+        return rows, SourceReport(
+            source=source.name,
+            status=status,
+            count=len(rows),
+            notice=source.last_notice,
+        )
     except Exception as e:  # noqa: BLE001
         status = classify_error(str(e))
         err = _actionable_err(source.name, str(e))
@@ -218,7 +250,12 @@ async def _fetch_one(source, query: str, days: int, limit: int,
             log.warning("source %s rate-limited: %s", source.name, e)
         else:
             log.warning("source %s errored: %s", source.name, e)
-        return [], SourceReport(source=source.name, status=status, error=err[:300])
+        return [], SourceReport(
+            source=source.name,
+            status=status,
+            error=err[:300],
+            notice=source.last_notice,
+        )
 
 
 def _actionable_err(source_name: str, err: str) -> str:
@@ -229,16 +266,25 @@ def _actionable_err(source_name: str, err: str) -> str:
     if source_name in _APIFY_SOURCES and "503" in err:
         base = os.environ.get("APIFY_BASE_URL", "").strip()
         if base:
-            return (f"503 from gateway {base} (can't hold sync actor run; check "
-                    f"APIFY_BASE_URL/gateway) — {err}")
+            return (
+                f"503 from gateway {base} (can't hold sync actor run; check "
+                f"APIFY_BASE_URL/gateway) — {err}"
+            )
     return err
 
 
 # Sources backed by Apify actors (via _apify.run_actor_sync) — used to attach a
 # gateway hint to 503s.
-_APIFY_SOURCES = frozenset({
-    "threads", "tiktok", "instagram", "pinterest", "linkedin", "quora",
-})
+_APIFY_SOURCES = frozenset(
+    {
+        "threads",
+        "tiktok",
+        "instagram",
+        "pinterest",
+        "linkedin",
+        "quora",
+    }
+)
 
 
 # Sources exempt from the default per-source wrapper timeout — they manage
@@ -262,8 +308,9 @@ async def run_search(
     set_client(client)
     set_snippet_len(max_chars_per_item)
     if sources is None:
-        names = [s.name for s in SOURCES.values()
-                 if s.available() and s.name not in DEFAULT_EXCLUDED]
+        names = [
+            s.name for s in SOURCES.values() if s.available() and s.name not in DEFAULT_EXCLUDED
+        ]
     else:
         names = list(sources)
 
@@ -277,9 +324,12 @@ async def run_search(
             pending.append(SOURCES[n])
 
     results = await asyncio.gather(
-        *[_fetch_one(s, query, days, max_per_source,
-                     timeout=_SLOW_SOURCE_TIMEOUTS.get(s.name, 90))
-          for s in pending]
+        *[
+            _fetch_one(
+                s, query, days, max_per_source, timeout=_SLOW_SOURCE_TIMEOUTS.get(s.name, 90)
+            )
+            for s in pending
+        ]
     )
     all_rows: list[Row] = []
     for rows, rep in results:
@@ -312,6 +362,7 @@ def render_source_summary(reports: list[SourceReport]) -> str:
     errored: list[tuple[str, str]] = []
     rate_limited: list[tuple[str, str]] = []
     unknown: list[str] = []
+    notices: list[tuple[str, str]] = []
 
     for r in reports:
         if r.status == "ok":
@@ -324,6 +375,8 @@ def render_source_summary(reports: list[SourceReport]) -> str:
             unknown.append(r.source)
         else:  # no_results / gated_off
             silent.append(r.source)
+        if r.notice:
+            notices.append((r.source, _short_err(r.notice)))
 
     lines: list[str] = []
     if ok:
@@ -333,6 +386,8 @@ def render_source_summary(reports: list[SourceReport]) -> str:
         lines.append("QUOTA: " + "; ".join(f"{n}({e})" for n, e in rate_limited))
     if errored:
         lines.append("ERRORS: " + "; ".join(f"{n}({e})" for n, e in errored))
+    if notices:
+        lines.append("NOTICE: " + "; ".join(f"{n}({e})" for n, e in notices))
     if silent:
         lines.append("EMPTY: " + ", ".join(sorted(silent)))
     if unknown:

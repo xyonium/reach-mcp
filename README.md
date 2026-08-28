@@ -92,7 +92,7 @@ often return `[]` — the backend isn't broken, the query is too specific.
 >
 > Best scoping: `category` -- social: x, reddit, instagram, threads, tiktok, xiaohongshu, bilibili, youtube, pinterest, bluesky, linkedin, web, weibo, zhihu; it: github, hackernews, v2ex, rss, arxiv, dripstack; tech: arxiv, techmeme, digg, dripstack, hackernews; polec (politics & economics): truthsocial, xueqiu, stocktwits, polymarket; podcast: xiaoyuzhou. Categories overlap (e.g. arxiv is both it and tech) -- multiple categories union. `sources` picks individual names; both together = union; both omitted = all available sources EXCEPT podcast (xiaoyuzhou is opt-in: episode transcription is slow, request it explicitly when you need podcasts). Search returns metadata + a snippet per item -- xiaoyuzhou/youtube/bilibili are NOT transcribed/captioned here. With synthesize=true the top rich-media items are auto-backfilled with full content before the brief; with synthesize=false call fetch_content on any item you want in full. `max_chars_per_item` caps snippet length (raise for fuller CN posts, lower to save tokens).
 >
-> Returns `{brief, items, sources_used, source_summary, available_sources}`. Each item: `{source, title, url, author, date, score, engagement, text}`. source_summary is one compact line per outcome -- 'x:3; reddit:5 | EMPTY: rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429)'; 'gated_off' means its credential env isn't set. Match query language to platform -- Chinese keywords work best for the CN sources. Call list_sources if unsure what's configured.
+> Returns `{brief, items, sources_used, source_summary, available_sources}`. Each item: `{source, title, url, author, date, score, engagement, text}`. source_summary is one compact line per outcome -- 'x:3; reddit:5 | EMPTY: rss, v2ex | QUOTA: tiktok(monthly limit) | ERRORS: digg(429) | NOTICE: zhihu(ZHIHU_COOKIE search failed — showing 热榜 instead; refresh the cookie)'; 'gated_off' means its credential env isn't set; NOTICE marks a degraded-but-working source (stale cookie fell back to a limited path) — usable data, but surface the caveat. Match query language to platform -- Chinese keywords work best for the CN sources. WeChat 公众号 queries on `web` auto-scope to mp.weixin.qq.com. Call list_sources if unsure what's configured.
 
 ### `list_sources`
 
@@ -387,9 +387,9 @@ Expired/invalid cookies degrade to the hot list automatically (warning logged), 
 
 > ⚠️ The cookie is a login credential — treat `ZHIHU_COOKIE` like a password. `z_c0` rotates if you log out; re-copy after re-login.
 
-#### WeChat articles / 微信公众号 (no new source)
+#### WeChat articles / 微信公众号 (via the `web` source, auto-scoped)
 
-WeChat MP articles are already searchable through the existing `web` source: Searxng indexes them — `site:mp.weixin.qq.com <keywords>` returns real article URLs (verified 2026-08, 17 results for 人工智能). No dedicated source is needed.
+WeChat MP articles are searchable through the existing `web` source: Searxng indexes them (verified 2026-08, 17 real results for 人工智能). Queries containing 公众号 / 微信文章 / weixin are **auto-scoped** with `site:mp.weixin.qq.com` on Searxng — no manual `site:` needed. There is no dedicated wechat source (WeChat has no public search API; the scraped-token approaches all require desktop mitmproxy).
 
 #### Web search (`SEARXNG_URL`)
 
