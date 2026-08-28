@@ -651,3 +651,70 @@ async def test_bilibili_fetch_trending_ranking():
     assert rows and rows[0].title == "热门视频"
     assert rows[0].engagement["play"] == 1000
     assert rows[0].url == "https://www.bilibili.com/video/BV1x"
+
+
+@pytest.mark.asyncio
+async def test_x_fetch_trending_via_trends24():
+    """X trends mirror via trends24.in — works WITHOUT the x source's login
+    cookies (the x.com trends API is login-gated; trends24 mirrors it)."""
+    html = (
+        '<li><span class=trend-name><a href="https://twitter.com/search?q=Lula" '
+        'class=trend-link>Lula</a><span class=tweet-count data-count="52300"></span></span></li>'
+        '<li><span class=trend-name><a href="https://twitter.com/search?q=%23GTA6" '
+        'class=trend-link>#GTA6</a><span class=tweet-count data-count=""></span></span></li>'
+    )
+    c = AsyncMock()
+    c.get_text = AsyncMock(return_value=html)
+    set_client(c)
+    rows = await get_source("x").fetch_trending(10)
+    assert len(rows) == 2
+    assert rows[0].title == "Lula"
+    assert rows[0].engagement["tweets"] == 52300
+    assert rows[0].url == "https://twitter.com/search?q=Lula"
+    assert rows[1].engagement["tweets"] == 0  # empty count tolerated
+    assert "/china/" in c.get_text.call_args.args[0] or c.get_text.call_args.args[0].endswith(
+        "trends24.in/"
+    )
+
+
+@pytest.mark.asyncio
+async def test_x_trending_skips_login_gate(monkeypatch):
+    """fetch_trending must NOT require AUTH_TOKEN/CT0 — trends24 is keyless."""
+    monkeypatch.delenv("AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("CT0", raising=False)
+    src = get_source("x")
+    assert not src.available()  # search stays gated...
+    c = AsyncMock()
+    c.get_text = AsyncMock(return_value="")
+    set_client(c)
+    rows = await src.fetch_trending(10)  # ...but trending still runs
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_github_fetch_trending_recent_stars():
+    """GitHub trending = search API with created:>{window} sort:stars."""
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "items": [
+                {
+                    "id": 1,
+                    "full_name": "foo/bar",
+                    "html_url": "https://github.com/foo/bar",
+                    "owner": {"login": "foo"},
+                    "created_at": "2026-08-26T00:00:00Z",
+                    "stargazers_count": 1660,
+                    "forks_count": 20,
+                    "description": "d",
+                    "language": "Python",
+                }
+            ]
+        }
+    )
+    set_client(c)
+    rows = await get_source("github").fetch_trending(10)
+    assert rows and rows[0].engagement["stars"] == 1660
+    assert rows[0].engagement["language"] == "Python"
+    q = c.get_json.call_args.kwargs["params"]["q"]
+    assert "created:" in q and "sort" in c.get_json.call_args.kwargs["params"]

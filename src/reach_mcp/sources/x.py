@@ -13,12 +13,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
+import re
 import shutil
 from pathlib import Path
 
 from reach_mcp.query_core import x_degradation_variants
 from reach_mcp.sources.base import Row, Source, get_client, register_source
+
+log = logging.getLogger(__name__)
+
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
 
 # Path to last30days' vendored bird-search.mjs (shared with the last30days
 # deployment). reach-mcp does NOT vendor it; it reuses the one last30days ships.
@@ -172,10 +181,51 @@ async def _fetch_via_xquik(query: str, limit: int) -> list[Row]:
 @register_source
 class X(Source):
     name = "x"
-    description = "X / Twitter via bird (GraphQL), cookie, or Xquik (XQUIK_API_KEY)."
+    description = "X / Twitter via bird (GraphQL), cookie, or Xquik (XQUIK_API_KEY). Trending (X trends via the trends24.in mirror) works WITHOUT login."
     host = "x.com"
     needs_auth = True
     required_env = ("AUTH_TOKEN", "CT0")
+    supports_trending = True
+
+    async def fetch_trending(self, limit: int) -> list[Row]:
+        """X (Twitter) trending topics via trends24.in — keyless.
+
+        The native x.com trends API is login-gated, but trends24.in mirrors the
+        same trending data per location. HTML is simple `trend-link` anchors;
+        tweet counts are in `data-count` when present.
+        """
+        client = get_client()
+        self.last_notice = None
+        location = os.environ.get("X_TRENDS_LOCATION", "").strip().strip("/")
+        url = f"https://trends24.in/{location}/" if location else "https://trends24.in/"
+        try:
+            html = await client.get_text(url, headers={"User-Agent": _UA})
+        except Exception as e:  # noqa: BLE001
+            log.warning("x trends fetch failed: %s", e)
+            return []
+        rows: list[Row] = []
+        for m in re.finditer(
+            r'href="(https?://(?:twitter|x)\.com/search\?q=[^"]*)"\s*class=trend-link>([^<]+)</a>'
+            r'(?:<span class=tweet-count data-count="([\d,]*)")?',
+            html,
+        ):
+            url_m, name, count = m.group(1), m.group(2).strip(), m.group(3) or ""
+            heat = int(count.replace(",", "")) if count.isdigit() else 0
+            rows.append(
+                Row(
+                    source="x",
+                    id=f"trend:{name}",
+                    title=name,
+                    url=url_m.replace("&amp;", "&"),
+                    author=None,
+                    date=None,
+                    engagement={"tweets": heat},
+                    text="X trending topic",
+                )
+            )
+            if len(rows) >= limit:
+                break
+        return rows
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         if not self.available():
