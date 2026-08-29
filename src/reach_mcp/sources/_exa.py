@@ -18,7 +18,11 @@ import os
 
 from reach_mcp.sources.base import Row, snip
 
-_API = "https://api.exa.ai/search"
+
+def _base() -> str:
+    """EXA_BASE_URL overrides the default api.exa.ai — for a key-rotator/proxy
+    gateway (same pattern as APIFY_BASE_URL). Trailing slash stripped."""
+    return os.environ.get("EXA_BASE_URL", "").strip().rstrip("/") or "https://api.exa.ai"
 
 
 def available() -> bool:
@@ -52,7 +56,9 @@ async def search(
         body["startPublishedDate"] = start
     try:
         data = await get_client().post_json(
-            _API, json=body, headers={"x-api-key": key, "Content-Type": "application/json"}
+            f"{_base()}/search",
+            json=body,
+            headers={"x-api-key": key, "Content-Type": "application/json"},
         )
     except Exception:  # noqa: BLE001
         return []
