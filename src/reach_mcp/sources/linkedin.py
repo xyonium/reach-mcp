@@ -1,17 +1,20 @@
 """LinkedIn public posts search.
 
-Backends, in priority order:
+Backends, merged by URL:
 
 - **Apify** (`apimaestro/linkedin-posts-search-scraper-no-cookies`, needs
   `APIFY_API_TOKEN`): keyword search over public posts, no LinkedIn cookies
-  required. This is the only backend that actually returns LinkedIn results.
-- **Searxng** (free, same engine as the `web` source): `site:linkedin.com`
-  scoped query as a keyless fallback. Quality varies — LinkedIn blocks most
-  crawlers, so hits are sporadic.
+  required. Returns the most results.
+- **exa** (`EXA_API_KEY`): includeDomains:linkedin.com + highlights — brings
+  fresh publishedDate (verified 2026-08-29: all 5 hits dated 2026-06/08) and
+  post-body opening text. The first date-carrying discovery path; Apify rows
+  often lack dates.
+- **Searxng** (free): `site:linkedin.com` fallback when Apify isn't configured.
 
 Jina's `s.jina.ai` was REMOVED 2026-08-03: it doesn't index LinkedIn (every
 query returned 0) and burns one-time grant tokens. `r.jina.ai` stays — it's
-what `read_url` uses, and it doesn't consume search tokens.
+what `read_url` uses (reads full LinkedIn post bodies free), and it doesn't
+consume search tokens.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import os
 
+from reach_mcp.sources._exa import search as _exa_search
 from reach_mcp.sources._scrapecreators import scrape_search
 from reach_mcp.sources.base import Row, Source, get_client, register_source, snip
 
@@ -66,24 +70,28 @@ async def _searxng_search(query: str, limit: int) -> list[Row]:
 class LinkedIn(Source):
     name = "linkedin"
     description = (
-        "LinkedIn public posts via Apify (keyword search, no LinkedIn login "
-        "needed; set APIFY_API_TOKEN) with a Searxng site: fallback. "
-        "Optional ScrapeCreators boost (SCRAPECREATORS_API_KEY)."
+        "LinkedIn public posts via Apify (APIFY_API_TOKEN) + exa (EXA_API_KEY, "
+        "adds post dates) + Searxng site: fallback. Optional ScrapeCreators boost."
     )
     host = "www.linkedin.com"
     needs_auth = False
     required_env = ()
 
     def available(self) -> bool:  # type: ignore[override]
-        # Apify token OR SC key OR a configured Searxng all make it worth a shot.
+        # Apify token OR SC key OR exa OR a configured Searxng: any makes it
+        # worth a shot.
         return bool(
             os.environ.get("APIFY_API_TOKEN", "").strip()
             or os.environ.get("SCRAPECREATORS_API_KEY", "").strip()
             or os.environ.get("SEARXNG_URL", "").strip()
+            or os.environ.get("EXA_API_KEY", "").strip()
         )
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         tasks: list = [_apify_search(query, limit)]
+        if os.environ.get("EXA_API_KEY", "").strip():
+            # exa runs in parallel — brings publishedDate + body-opening text.
+            tasks.append(_exa_search(query, "linkedin.com", "linkedin", limit, days))
         if os.environ.get("SCRAPECREATORS_API_KEY", "").strip():
             tasks.append(scrape_search(get_client(), "linkedin", query, limit))
         if not os.environ.get("APIFY_API_TOKEN", "").strip():

@@ -36,6 +36,52 @@ def _searxng_payload():
 
 
 @pytest.mark.asyncio
+async def test_quora_prefers_exa_when_key_set(monkeypatch):
+    """Backend order: exa (answer-rich highlights + dates) first; Searxng only
+    when exa is unset/empty."""
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng:8080")
+    from reach_mcp.sources.base import Row
+
+    async def fake_exa(query, domain, source, limit, days=0):
+        assert domain == "quora.com" and source == "quora"
+        return [
+            Row(
+                source="quora",
+                id="e1",
+                title="exa quora hit",
+                url="https://www.quora.com/exa",
+                date="2022-08-29T00:00:00.000Z",
+                text="answer highlight from exa",
+            )
+        ]
+
+    monkeypatch.setattr(q, "_exa_search", fake_exa)
+    # searxng must NOT be consulted when exa returns rows
+    c = AsyncMock()
+    c.get_json = AsyncMock(side_effect=AssertionError("searxng must not run"))
+    set_client(c)
+    rows = await get_source("quora").fetch("kubernetes", 30, 10)
+    assert len(rows) == 1
+    assert rows[0].id == "e1"
+    assert "answer highlight" in rows[0].text
+
+
+@pytest.mark.asyncio
+async def test_quora_falls_through_exa_to_searxng(monkeypatch):
+    """exa set but returns nothing -> Searxng takes over."""
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng:8080")
+    monkeypatch.delenv("APIFY_API_TOKEN", raising=False)
+    monkeypatch.setattr(q, "_exa_search", AsyncMock(return_value=[]))
+    c = AsyncMock()
+    c.get_json = AsyncMock(return_value=_searxng_payload())
+    set_client(c)
+    rows = await get_source("quora").fetch("kubernetes", 30, 10)
+    assert len(rows) == 2  # searxng results
+
+
+@pytest.mark.asyncio
 async def test_quora_searxng_primary_parses(monkeypatch):
     monkeypatch.delenv("APIFY_API_TOKEN", raising=False)
     monkeypatch.setenv("SEARXNG_URL", "http://searxng:8080")

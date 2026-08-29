@@ -68,6 +68,8 @@ _SEARCH_DESC = (
     'this mode (pass ""); `sources` still scopes (e.g. sources=["weibo"]). '
     "Use it for 'what's trending on weibo', '今日热搜', or to seed a topic "
     "before a keyword search.\n\n"
+    "quora and linkedin gain dated, answer-rich results when EXA_API_KEY is "
+    "set (exa neural search scoped to those domains).\n\n"
     "CREDENTIAL HEALTH: if source_summary carries NOTICE lines, that source "
     "degraded (e.g. a stale login cookie fell back to a limited public path). "
     "Results are still usable, but mention the notice when it matters and "
