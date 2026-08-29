@@ -106,3 +106,23 @@ def test_exa_available(monkeypatch):
     assert exa.available()
     monkeypatch.delenv("EXA_API_KEY")
     assert not exa.available()
+
+
+def test_exa_base_url_override(monkeypatch):
+    """EXA_BASE_URL overrides the default api.exa.ai (for key-rotator/proxy)."""
+    monkeypatch.delenv("EXA_BASE_URL", raising=False)
+    assert exa._base() == "https://api.exa.ai"
+    monkeypatch.setenv("EXA_BASE_URL", "http://api-key-rotator:8788/exa/")
+    assert exa._base() == "http://api-key-rotator:8788/exa"  # trailing slash stripped
+
+
+@pytest.mark.asyncio
+async def test_exa_search_uses_base_override(monkeypatch):
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    monkeypatch.setenv("EXA_BASE_URL", "http://gw:9000/exa")
+    c = AsyncMock()
+    c.post_json = AsyncMock(return_value=_exa_payload())
+    set_client(c)
+    await exa.search("kubernetes", "quora.com", "quora", 10)
+    url = c.post_json.call_args.args[0]
+    assert url == "http://gw:9000/exa/search"
