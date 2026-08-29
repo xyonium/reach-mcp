@@ -256,9 +256,10 @@ def test_apify_base_url_env_override(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_linkedin_surfaces_backend_error(monkeypatch):
-    """When every backend raises (e.g. gateway 503), linkedin re-raises so the
-    pipeline reports ERRORS instead of a silent EMPTY."""
+    """Ladder semantics: with no exa key, Apify is the top tier — its error
+    propagates so the pipeline reports ERRORS instead of a silent EMPTY."""
     monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
     monkeypatch.delenv("SCRAPECREATORS_API_KEY", raising=False)
     monkeypatch.setattr(
         "reach_mcp.sources.linkedin._apify_search",
@@ -270,14 +271,17 @@ async def test_linkedin_surfaces_backend_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_linkedin_partial_success_returns_rows(monkeypatch):
-    """One backend failing while another returns rows -> rows win, no raise."""
+    """In the free tail (SC + Searxng), one backend failing while another
+    returns rows -> rows win, no raise."""
     from reach_mcp.sources.base import Row
 
-    monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
+    # no exa, no apify -> straight to the SC+Searxng tail
+    monkeypatch.delenv("APIFY_API_TOKEN", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
     monkeypatch.setenv("SCRAPECREATORS_API_KEY", "sc_test")
     monkeypatch.setattr(
-        "reach_mcp.sources.linkedin._apify_search",
-        AsyncMock(side_effect=RuntimeError("apify x: HTTP 503 — ")),
+        "reach_mcp.sources.linkedin._searxng_search",
+        AsyncMock(side_effect=RuntimeError("searxng 503")),
     )
     monkeypatch.setattr(
         "reach_mcp.sources.linkedin.scrape_search",

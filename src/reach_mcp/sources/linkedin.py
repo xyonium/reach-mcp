@@ -70,8 +70,8 @@ async def _searxng_search(query: str, limit: int) -> list[Row]:
 class LinkedIn(Source):
     name = "linkedin"
     description = (
-        "LinkedIn public posts via Apify (APIFY_API_TOKEN) + exa (EXA_API_KEY, "
-        "adds post dates) + Searxng site: fallback. Optional ScrapeCreators boost."
+        "LinkedIn public posts via exa (EXA_API_KEY, fresh dates + body text, "
+        "primary) -> Apify (APIFY_API_TOKEN) -> Searxng/ScrapeCreators fallback."
     )
     host = "www.linkedin.com"
     needs_auth = False
@@ -88,15 +88,23 @@ class LinkedIn(Source):
         )
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
-        tasks: list = [_apify_search(query, limit)]
+        self.last_notice = None
+        # Ladder: exa (primary — fresh dates + body opening) -> Apify (most
+        # results) -> ScrapeCreators + Searxng (free tail). First non-empty
+        # tier wins; lower tiers only run when the tier above returned nothing.
         if os.environ.get("EXA_API_KEY", "").strip():
-            # exa runs in parallel — brings publishedDate + body-opening text.
-            tasks.append(_exa_search(query, "linkedin.com", "linkedin", limit, days))
+            rows = await _exa_search(query, "linkedin.com", "linkedin", limit, days)
+            if rows:
+                return rows[:limit]
+        if os.environ.get("APIFY_API_TOKEN", "").strip():
+            rows = await _apify_search(query, limit)
+            if rows:
+                return rows[:limit]
+        # Free tail: SC + Searxng merged (both keyless-config paths)
+        tasks: list = []
         if os.environ.get("SCRAPECREATORS_API_KEY", "").strip():
             tasks.append(scrape_search(get_client(), "linkedin", query, limit))
-        if not os.environ.get("APIFY_API_TOKEN", "").strip():
-            # Only bother with the Searxng fallback when Apify isn't configured.
-            tasks.append(_searxng_search(query, limit))
+        tasks.append(_searxng_search(query, limit))
         results = await asyncio.gather(*tasks, return_exceptions=True)
         seen, rows = set(), []
         first_exc: Exception | None = None
