@@ -148,6 +148,8 @@ async def test_linuxdo_source_search_and_trending(monkeypatch):
     import json as _json
 
     monkeypatch.setenv("LINUXDO_COOKIE", "_t=abc; _forum_session=def")
+    # CI has no playwright installed — available() gates on it, so patch it in
+    monkeypatch.setattr(lp, "_playwright_available", lambda: True)
     search_body = _json.dumps({"topics": [_topic()]})
     latest_body = _json.dumps({"topic_list": {"topics": [_topic(tid=5, title="hot")]}})
 
