@@ -49,7 +49,7 @@ async def _chat(messages: list[dict], model: str, settings: Settings) -> str:
         "Content-Type": "application/json",
     }
     payload = {"model": model, "messages": messages, "temperature": 0.2}
-    async with httpx.AsyncClient(timeout=settings.request_timeout) as client:
+    async with httpx.AsyncClient(timeout=settings.openai_timeout) as client:
         resp = await client.post(_chat_url(settings), json=payload, headers=headers)
         resp.raise_for_status()
         data = resp.json()

@@ -104,3 +104,28 @@ async def test_fetch_content_tool_passes_through_on_success(monkeypatch):
     tool = mcp._tool_manager.get_tool("fetch_content")
     out = await tool.run({"source": "web", "id_or_url": "https://example.com/x"})
     assert out["ok"] and out["content"] == "body"
+
+
+def test_searxng_time_range_uses_valid_enum():
+    """Regression: searxng only accepts day/week/month/year for time_range;
+    the buggy f'{days}d' produced '30d' → 400 Invalid value → silent empty web."""
+    from reach_mcp.sources.web import _searxng_params
+
+    assert _searxng_params("q", 1)["time_range"] == "day"
+    assert _searxng_params("q", 7)["time_range"] == "week"
+    assert _searxng_params("q", 30)["time_range"] == "month"
+    assert _searxng_params("q", 31)["time_range"] == "month"
+    assert _searxng_params("q", 90)["time_range"] == "year"
+    assert _searxng_params("q", 365)["time_range"] == "year"
+    assert "time_range" not in _searxng_params("q", 400)   # all-time, omit
+    assert "time_range" not in _searxng_params("q", 1800)
+
+
+def test_synthesize_uses_dedicated_openai_timeout():
+    """Regression: LLM brief/rerank shared the 15s page-fetch request_timeout and
+    timed out (httpx.ReadTimeout) on slower gateways; it now uses openai_timeout."""
+    from reach_mcp.config import Settings
+
+    s = Settings()
+    assert s.openai_timeout == 120
+    assert s.openai_timeout > s.request_timeout
