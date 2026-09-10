@@ -124,3 +124,48 @@ async def test_backfill_keeps_snippet_on_failure(monkeypatch):
     await _backfill_rich_media(items, _settings())
     yt = next(i for i in items if i.source == "youtube")
     assert yt.text == "desc snippet"  # fallback intact
+
+
+@pytest.mark.asyncio
+async def test_fetch_content_bare_without_prior_search_installs_own_client(monkeypatch):
+    """Regression: the Jina/reader path must work even when `search` never ran
+    (no shared PoliteClient installed) — previously hit 'PoliteClient not set'."""
+    import reach_mcp.sources.base as base
+
+    monkeypatch.setattr(base, "_CLIENT", None)  # simulate: no search ran in this process
+    monkeypatch.setattr(
+        "reach_mcp.content.jina_read_url", AsyncMock(return_value="article body")
+    )
+    out = await fetch_content("web", "https://example.com/a", _settings())
+    assert out["ok"] and out["content"] == "article body"
+
+
+@pytest.mark.asyncio
+async def test_fetch_content_zhihu_question_uses_api(monkeypatch):
+    """zhihu question/answer goes to api/v4/answers with cookie, not Jina."""
+
+    async def fake_full(id_or_url, client):
+        assert "answer" in id_or_url
+        return "full answer body"
+
+    monkeypatch.setattr("reach_mcp.sources.zhihu.fetch_full_content", fake_full)
+    out = await fetch_content(
+        "zhihu", "https://www.zhihu.com/question/1/answer/2", _settings()
+    )
+    assert out["ok"] and out["content"] == "full answer body"
+
+
+@pytest.mark.asyncio
+async def test_fetch_content_zhihu_article_falls_back_to_reader(monkeypatch):
+    captured = {}
+
+    async def fake_full(id_or_url, client):
+        captured["url"] = id_or_url
+        return "article lede"
+
+    monkeypatch.setattr("reach_mcp.sources.zhihu.fetch_full_content", fake_full)
+    out = await fetch_content(
+        "zhihu", "https://zhuanlan.zhihu.com/p/2028", _settings()
+    )
+    assert out["ok"] and out["content"] == "article lede"
+    assert "zhuanlan.zhihu.com/p/2028" in captured["url"]
