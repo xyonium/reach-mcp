@@ -31,9 +31,23 @@ def _scope_wechat(query: str) -> str:
 
 
 def _searxng_params(query: str, days: int) -> dict:
+    """Map our free `days` int to Searxng's coarse `time_range` enum.
+
+    Searxng accepts ONLY the values day/week/month/year — arbitrary "30d" /
+    "180d" strings are rejected with `400 Invalid value ... for time_range`,
+    which silently dropped every web result (Brave then carried the source
+    alone). We pick the smallest bucket that still covers `days`.
+    """
     p = {"q": _scope_wechat(query), "format": "json", "safesearch": 0}
-    if 0 < days <= 365:
-        p["time_range"] = f"{days}d"
+    if 0 < days <= 1:
+        p["time_range"] = "day"
+    elif days <= 7:
+        p["time_range"] = "week"
+    elif days <= 31:
+        p["time_range"] = "month"
+    elif days <= 365:
+        p["time_range"] = "year"
+    # days > 365: no range filter (all-time) — leave time_range unset
     return p
 
 

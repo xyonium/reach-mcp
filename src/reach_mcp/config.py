@@ -68,6 +68,11 @@ class Settings:
 
     searxng_url: str = field(default_factory=lambda: _env("SEARXNG_URL", "http://searxng:8080"))
 
+    # LLM synthesis (rerank/brief) needs a much longer budget than a page fetch:
+    # request_timeout (15s) is tuned for fast source calls and a proxied chat
+    # completion regularly exceeds it, surfacing as httpx.ReadTimeout mid-brief.
+    openai_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_OPENAI_TIMEOUT", 120))
+
     # Whisper transcription (OpenAI-compatible /v1/audio/transcriptions; self-hosted
     # LocalAI etc.). GROQ_API_KEY is NOT used — point WHISPER_BASE_URL at any
     # OpenAI-compatible whisper endpoint. Key may be empty (LocalAI doesn't check).
