@@ -72,3 +72,35 @@ async def test_search_tool_trending_mode(monkeypatch):
     assert out["items"][0]["title"] == "热搜"
     assert called["sources"] is None  # None = all trending sources
     assert "NOTICE" not in out["source_summary"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_content_tool_raises_toolerror_on_failure(monkeypatch):
+    """Regression: a failed fetch must raise ToolError so MCP sets isError
+    (OWUI then shows ✗), not return a 200 body that renders as a green ✓."""
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from reach_mcp.tools import build_mcp
+
+    async def fake_fetch(source, id_or_url, settings):
+        return {"source": source, "url": id_or_url, "content": "", "ok": False}
+
+    monkeypatch.setattr("reach_mcp.tools.fetch_content", fake_fetch)
+    mcp = build_mcp(Settings())
+    tool = mcp._tool_manager.get_tool("fetch_content")
+    with pytest.raises(ToolError):
+        await tool.run({"source": "web", "id_or_url": "https://example.com/x"})
+
+
+@pytest.mark.asyncio
+async def test_fetch_content_tool_passes_through_on_success(monkeypatch):
+    from reach_mcp.tools import build_mcp
+
+    async def fake_fetch(source, id_or_url, settings):
+        return {"source": source, "url": id_or_url, "content": "body", "ok": True}
+
+    monkeypatch.setattr("reach_mcp.tools.fetch_content", fake_fetch)
+    mcp = build_mcp(Settings())
+    tool = mcp._tool_manager.get_tool("fetch_content")
+    out = await tool.run({"source": "web", "id_or_url": "https://example.com/x"})
+    assert out["ok"] and out["content"] == "body"

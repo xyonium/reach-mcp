@@ -265,3 +265,38 @@ async def test_run_trending_runs_gated_search_sources(monkeypatch):
         assert reports[0].status == "ok"
     finally:
         del pl.SOURCES["stub_gated_trend"]
+
+
+def test_score_tolerates_naive_and_bad_dates():
+    """Regression: naive date strings (no tz) crashed score() with TypeError
+    'can't subtract offset-naive and offset-aware datetimes', 500ing search."""
+    from reach_mcp.pipeline import score
+    from reach_mcp.sources.base import Item
+
+    def it(date):
+        return Item(source="web", id="1", title="t", url="u", date=date, engagement={}, text="")
+
+    # Must not raise; naive treated as UTC (recent date -> high decay-based score)
+    out = score([it("2026-08-01"), it("2026-08-01T12:00:00"), it("2024-06-12T11:13:52Z")], 30)
+    assert len(out) == 3
+    # RFC-822 / ISO-z / garbage / None also safe
+    score([it("Thu, 10 Sep 2026 14:13:09 +0000"), it("bogus"), it(None)], 30)
+
+
+def test_score_naive_date_gets_recency_decay_not_zero():
+    """A naive recent date should score as recent (not silently collapse to 0)."""
+    from datetime import datetime as dt
+    from datetime import timedelta as td
+    from datetime import timezone as tz
+
+    from reach_mcp.pipeline import score
+    from reach_mcp.sources.base import Item
+
+    # 3 days ago, naive (no tz), inside a 30-day window: decay = 1 - 3/30 = 0.9.
+    # Single item → engagement z=0 → factor = 0.5 + 0.5*0 = 0.5. score = 0.5*0.9 = 0.45.
+    recent_naive = dt.now(tz.utc).replace(tzinfo=None) - td(days=3)
+    out = score(
+        [Item(source="web", id="1", title="t", url="u", date=recent_naive.isoformat(), engagement={}, text="")],
+        30,
+    )
+    assert out[0].score == pytest.approx(0.45, abs=1e-3), out[0].score

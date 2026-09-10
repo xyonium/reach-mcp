@@ -207,6 +207,13 @@ def score(items: list[Item], days: int) -> list[Item]:
             if it.date:
                 try:
                     d = datetime.fromisoformat(it.date.replace("Z", "+00:00"))
+                    # Some sources feed naive ISO/datetime strings (no offset —
+                    # searxng publishedDate, a date-only "2026-08-01"). fromisoformat
+                    # returns a naive datetime; subtracting from aware `now` would
+                    # raise TypeError ("can't subtract offset-naive and offset-aware
+                    # datetimes"). Treat naive as UTC — every upstream timestamp is.
+                    if d.tzinfo is None:
+                        d = d.replace(tzinfo=timezone.utc)
                     age_days = max(0.0, (now - d).total_seconds() / 86400.0)
                 except ValueError:
                     age_days = 0.0

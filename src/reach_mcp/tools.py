@@ -6,6 +6,7 @@ import asyncio
 import logging
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 
 from reach_mcp.config import Settings
@@ -287,7 +288,14 @@ def build_mcp(settings: Settings) -> FastMCP:
 
     @mcp.tool(name="fetch_content", description=_FETCH_CONTENT_DESC)
     async def fetch_content_tool(source: str, id_or_url: str) -> dict:
-        return await fetch_content(source, id_or_url, settings)
+        res = await fetch_content(source, id_or_url, settings)
+        # Surface a real failure as an MCP error (isError), not a 200 body —
+        # otherwise clients (e.g. OpenWebUI via mcpo) show a green ✓ for a
+        # fetch that returned no content. FastMCP turns ToolError into an
+        # isError result carrying our message.
+        if not res.get("ok"):
+            raise ToolError(res.get("_error") or f"no content for {source}: {id_or_url}")
+        return res
 
     @mcp.tool(description=_READ_URL_DESC)
     async def read_url(url: str) -> dict:
@@ -297,7 +305,9 @@ def build_mcp(settings: Settings) -> FastMCP:
         try:
             set_client(client)
             content = await jina_read_url(url)
-            return {"url": url, "content": content, "ok": bool(content)}
+            if not content:
+                raise ToolError(f"no content for {url}")
+            return {"url": url, "content": content, "ok": True}
         finally:
             await client.aclose()
 

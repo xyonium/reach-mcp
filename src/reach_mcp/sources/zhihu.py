@@ -57,6 +57,67 @@ def _strip_tags(text: str) -> str:
     return html.unescape(text).strip()
 
 
+def _html_to_text(html_str: str) -> str:
+    """Best-effort zhihu RichContent body → readable plain text.
+
+    The api/v4 `content` field is a <p>/<figure>/<h2>/<ul> document. We keep
+    block boundaries as newlines, drop figures (images/【】refs), and
+    unescape entities. No heavy parser dependency needed.
+    """
+    if not html_str:
+        return ""
+    # drop figures/embeds; keep their captions inline would be noise
+    s = re.sub(r"<(figure|video|noscript|script|style)[\s\S]*?</\1>", "", html_str, flags=re.I)
+    # turn block-level breaks into newlines before stripping tags
+    s = re.sub(r"<(br|/p|/h\d|/li|/blockquote)\s*/?>", "\n", s, flags=re.I)
+    s = re.sub(r"<[^>]+>", "", s)
+    s = html.unescape(s)
+    lines = [ln.strip() for ln in s.splitlines()]
+    return "\n".join(ln for ln in lines if ln)
+
+
+async def fetch_full_content(id_or_url: str, client) -> str:
+    """Full body of one zhihu item for fetch_content.
+
+    - question/answer URL → api/v4/answers/{id}?include=content with the
+      ZHIHU_COOKIE. Verified: desktop UA + cookie returns 200 + full body
+      (no x-zse-96 signature needed), while the bare page/page-Jina path is
+      a login-walled stub from this server's egress IP.
+    - zhuanlan article (https://zhuanlan.zhihu.com/p/{id}) → Jina Reader.
+      api/v4/articles/{id} needs a mobile signature we can't mint (403
+      10003), so the reader is the only viable path; it returns at least the
+      title + author + lead when zhihu login-walls the body (→ "" would be
+      treated as a failed fetch, so we surface whatever Jina got even if
+      it's just the lede).
+    """
+    from reach_mcp.jina import read_url as jina_read_url
+
+    url = (id_or_url or "").strip()
+    q = re.search(r"zhihu\.com/(?:question/\d+/answer|answer)/(\d+)", url)
+
+    cookie = _cookie_str()
+    if q and cookie:
+        answer_id = q.group(1)
+        try:
+            data = await client.get_json(
+                f"https://www.zhihu.com/api/v4/answers/{answer_id}",
+                params={"include": "content"},
+                headers={
+                    "User-Agent": _DESKTOP_UA,
+                    "Cookie": cookie,
+                    "Accept": "application/json",
+                },
+            )
+            body = _html_to_text(data.get("content") or "")
+            if body:
+                return body
+            log.debug("zhihu answer %s: empty content field (cookie may be stale)", answer_id)
+        except Exception as e:  # noqa: BLE001 — stale cookie / WAF / network
+            log.debug("zhihu api/v4/answers %s failed: %s; trying reader", answer_id, e)
+    # Article, or no-cookie/api-failed answer: reader is the fallback.
+    return await jina_read_url(url)
+
+
 def _rows_from_search(data: dict, limit: int) -> list[Row]:
     rows: list[Row] = []
     for entry in data.get("data") or []:
