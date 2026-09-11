@@ -90,7 +90,7 @@ async def fetch_full_content(id_or_url: str, client) -> str:
       treated as a failed fetch, so we surface whatever Jina got even if
       it's just the lede).
     """
-    from reach_mcp.jina import read_url as jina_read_url
+    from reach_mcp.readurl import read_url as jina_read_url
 
     url = (id_or_url or "").strip()
     q = re.search(r"zhihu\.com/(?:question/\d+/answer|answer)/(\d+)", url)

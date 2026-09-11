@@ -17,7 +17,7 @@ import logging
 
 from reach_mcp.config import Settings
 from reach_mcp.http import PoliteClient
-from reach_mcp.jina import read_url as jina_read_url
+from reach_mcp.readurl import read_url as jina_read_url
 
 log = logging.getLogger(__name__)
 
