@@ -129,3 +129,10 @@ def test_synthesize_uses_dedicated_openai_timeout():
     s = Settings()
     assert s.openai_timeout == 120
     assert s.openai_timeout > s.request_timeout
+
+
+def test_config_read_timeout_larger_than_request_timeout():
+    from reach_mcp.config import Settings
+
+    s = Settings()
+    assert s.read_timeout == 90 and s.read_timeout > s.request_timeout

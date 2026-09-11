@@ -36,13 +36,16 @@ class PoliteClient:
                 await asyncio.sleep(wait)
             self._next_allowed[host] = time.monotonic() + self._settings.min_host_delay
 
-    async def _request(self, url: str, *, params, headers) -> httpx.Response:
+    async def _request(self, url: str, *, params, headers, timeout=None) -> httpx.Response:
         host = urlparse(url).netloc
         last_exc: Exception | None = None
+        get_kw: dict[str, Any] = {"params": params, "headers": headers}
+        if timeout is not None:
+            get_kw["timeout"] = timeout
         for attempt in range(self._settings.max_retries + 1):
             await self._pace(host)
             try:
-                resp = await self._client.get(url, params=params, headers=headers)
+                resp = await self._client.get(url, **get_kw)
             except Exception as e:  # noqa: BLE001
                 last_exc = e
                 if attempt < self._settings.max_retries:
@@ -62,12 +65,12 @@ class PoliteClient:
             raise last_exc
         raise httpx.HTTPError(f"exhausted retries for {url}")
 
-    async def get_json(self, url: str, *, params=None, headers=None) -> Any:
-        resp = await self._request(url, params=params, headers=headers)
+    async def get_json(self, url: str, *, params=None, headers=None, timeout=None) -> Any:
+        resp = await self._request(url, params=params, headers=headers, timeout=timeout)
         return resp.json()
 
-    async def get_text(self, url: str, *, params=None, headers=None) -> str:
-        resp = await self._request(url, params=params, headers=headers)
+    async def get_text(self, url: str, *, params=None, headers=None, timeout=None) -> str:
+        resp = await self._request(url, params=params, headers=headers, timeout=timeout)
         return resp.text
 
     async def post_json(self, url: str, *, json: Any, headers=None) -> Any:

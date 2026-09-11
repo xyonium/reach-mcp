@@ -89,6 +89,11 @@ class Settings:
 
     source_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_SOURCE_TIMEOUT", 60))
     request_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_REQUEST_TIMEOUT", 15))
+    # Deep page reads (Jina reader) can be slow — a heavy page through the
+    # proxy can legitimately take >15s (observed 16.6s on three.co.uk) and
+    # the bare request_timeout would cut it off mid-read. Used only by the
+    # fetch_content/read_url reader path, not the fast search fetches.
+    read_timeout: int = field(default_factory=lambda: _env_int("REACH_MCP_READ_TIMEOUT", 90))
     min_host_delay: float = field(
         default_factory=lambda: _env_float("REACH_MCP_MIN_HOST_DELAY", 0.5)
     )
