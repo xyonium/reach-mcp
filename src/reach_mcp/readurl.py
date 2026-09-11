@@ -114,6 +114,8 @@ async def _tavily_read(url: str, timeout: float) -> str:
     is a dummy it accepts, so this works without a per-service key in config.
     """
     key = os.environ.get("TAVILY_API_KEY", "").strip() or "dummy"
+    # Through the rotator the service is mounted under /tavily
+    # (POST {rotator}/tavily/extract); direct api.tavily.com mounts at root.
     base = os.environ.get("TAVILY_BASE_URL", "").strip().rstrip("/") or "https://api.tavily.com"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
