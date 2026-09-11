@@ -66,3 +66,48 @@ async def test_gives_up_after_max_retries(monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", AsyncMock(return_value=None))
     with pytest.raises(httpx.HTTPStatusError):
         await client.get_json("https://api.example.com/z")
+
+
+@pytest.mark.asyncio
+async def test_get_text_timeout_override_threaded(monkeypatch):
+    """fetch_content/read_url reader path needs a wider budget than the
+    shared request_timeout for heavy pages; the timeout must reach httpx."""
+    import httpx
+
+    from reach_mcp.config import Settings
+    from reach_mcp.http import PoliteClient
+
+    captured = {}
+
+    async def fake_get(self, url, **kw):  # noqa: ANN001
+        captured.update(kw)
+        return httpx.Response(200, text="ok", request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+    client = PoliteClient(Settings())
+    await client.get_text("https://x.example/a", timeout=90)
+    await client.aclose()
+    assert captured.get("timeout") == 90
+
+
+@pytest.mark.asyncio
+async def test_default_request_omits_timeout_kwarg(monkeypatch):
+    """Existing callers (no timeout) must NOT pass timeout=None into httpx —
+    httpx treats None as 'no default override', and old test fakes don't
+    accept the kwarg at all."""
+    import httpx
+
+    from reach_mcp.config import Settings
+    from reach_mcp.http import PoliteClient
+
+    captured = {}
+
+    async def fake_get(self, url, *, params=None, headers=None):  # noqa: ANN001
+        captured.update(dict(params=params, headers=headers))
+        return httpx.Response(200, text="ok", request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+    client = PoliteClient(Settings())
+    await client.get_text("https://x.example/a")
+    await client.aclose()
+    assert "timeout" not in captured
