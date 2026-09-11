@@ -146,7 +146,8 @@ async def read_url(url: str, timeout: float | None = None) -> str:
     wall/stub check, else "".
     """
     budget = float(
-        timeout if timeout is not None
+        timeout
+        if timeout is not None
         else os.environ.get("REACH_MCP_READ_TIMEOUT", str(_DEFAULT_READ_TIMEOUT))
     )
     for backend in (_exa_read, _jina_read, _firecrawl_read, _tavily_read):
@@ -154,6 +155,10 @@ async def read_url(url: str, timeout: float | None = None) -> str:
         if body and not _looks_walled(body):
             return body
         if body:
-            log.debug("read_url: %s returned a wall/stub (%d chars) for %s; next backend",
-                      backend.__name__, len(body), url)
+            log.debug(
+                "read_url: %s returned a wall/stub (%d chars) for %s; next backend",
+                backend.__name__,
+                len(body),
+                url,
+            )
     return ""

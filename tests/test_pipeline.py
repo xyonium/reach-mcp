@@ -296,7 +296,17 @@ def test_score_naive_date_gets_recency_decay_not_zero():
     # Single item → engagement z=0 → factor = 0.5 + 0.5*0 = 0.5. score = 0.5*0.9 = 0.45.
     recent_naive = dt.now(tz.utc).replace(tzinfo=None) - td(days=3)
     out = score(
-        [Item(source="web", id="1", title="t", url="u", date=recent_naive.isoformat(), engagement={}, text="")],
+        [
+            Item(
+                source="web",
+                id="1",
+                title="t",
+                url="u",
+                date=recent_naive.isoformat(),
+                engagement={},
+                text="",
+            )
+        ],
         30,
     )
     assert out[0].score == pytest.approx(0.45, abs=1e-3), out[0].score

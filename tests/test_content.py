@@ -133,9 +133,7 @@ async def test_fetch_content_bare_without_prior_search_installs_own_client(monke
     import reach_mcp.sources.base as base
 
     monkeypatch.setattr(base, "_CLIENT", None)  # simulate: no search ran in this process
-    monkeypatch.setattr(
-        "reach_mcp.content.jina_read_url", AsyncMock(return_value="article body")
-    )
+    monkeypatch.setattr("reach_mcp.content.jina_read_url", AsyncMock(return_value="article body"))
     out = await fetch_content("web", "https://example.com/a", _settings())
     assert out["ok"] and out["content"] == "article body"
 
@@ -149,9 +147,7 @@ async def test_fetch_content_zhihu_question_uses_api(monkeypatch):
         return "full answer body"
 
     monkeypatch.setattr("reach_mcp.sources.zhihu.fetch_full_content", fake_full)
-    out = await fetch_content(
-        "zhihu", "https://www.zhihu.com/question/1/answer/2", _settings()
-    )
+    out = await fetch_content("zhihu", "https://www.zhihu.com/question/1/answer/2", _settings())
     assert out["ok"] and out["content"] == "full answer body"
 
 
@@ -164,9 +160,7 @@ async def test_fetch_content_zhihu_article_falls_back_to_reader(monkeypatch):
         return "article lede"
 
     monkeypatch.setattr("reach_mcp.sources.zhihu.fetch_full_content", fake_full)
-    out = await fetch_content(
-        "zhihu", "https://zhuanlan.zhihu.com/p/2028", _settings()
-    )
+    out = await fetch_content("zhihu", "https://zhuanlan.zhihu.com/p/2028", _settings())
     assert out["ok"] and out["content"] == "article lede"
     assert "zhuanlan.zhihu.com/p/2028" in captured["url"]
 
@@ -189,6 +183,7 @@ async def test_readurl_order_cheap_first(monkeypatch):
     """Exa valid content short-circuits — Jina/Firecrawl never run for a cached page."""
     _stub_backends(monkeypatch, exa="x" * 500)
     import reach_mcp.readurl as ru
+
     assert (await ru.read_url("https://x")) == "x" * 500
 
 
@@ -196,8 +191,12 @@ async def test_readurl_order_cheap_first(monkeypatch):
 async def test_readurl_skips_walled_exa_falls_to_jina(monkeypatch):
     """A consent-wall body from Exa is rejected; Jina's real body wins."""
     import reach_mcp.readurl as ru
-    _stub_backends(monkeypatch, exa="Before you continue to Google. Enable JavaScript to sign in.",
-                   jina="real article body " * 40)
+
+    _stub_backends(
+        monkeypatch,
+        exa="Before you continue to Google. Enable JavaScript to sign in.",
+        jina="real article body " * 40,
+    )
     assert await ru.read_url("https://x") == "real article body " * 40
 
 
@@ -205,6 +204,7 @@ async def test_readurl_skips_walled_exa_falls_to_jina(monkeypatch):
 async def test_readurl_empty_short_circuit_to_firecrawl(monkeypatch):
     """Exa+Jina empty/too-short -> Firecrawl renders the body (credits spent only here)."""
     import reach_mcp.readurl as ru
+
     _stub_backends(monkeypatch, exa="", jina="short", fc="rendered full body " * 60)
     assert (await ru.read_url("https://x")).startswith("rendered full body")
 
@@ -212,14 +212,16 @@ async def test_readurl_empty_short_circuit_to_firecrawl(monkeypatch):
 @pytest.mark.asyncio
 async def test_readurl_all_walled_returns_empty(monkeypatch):
     import reach_mcp.readurl as ru
+
     _stub_backends(monkeypatch, exa="Sign in to continue", jina="", fc="log in to view", tav="")
     assert await ru.read_url("https://x") == ""
 
 
 def test_looks_walled_detects_consent_and_short():
     from reach_mcp.readurl import _looks_walled
-    assert _looks_walled("")                       # empty
+
+    assert _looks_walled("")  # empty
     assert _looks_walled("Before you continue to Google")  # consent shell
     assert _looks_walled("Enable JavaScript to run this app")
-    assert _looks_walled("tiny")                   # too short to be a body
+    assert _looks_walled("tiny")  # too short to be a body
     assert not _looks_walled("A real paragraph of content. " * 30)  # long, no wall markers

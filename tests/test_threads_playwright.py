@@ -16,9 +16,17 @@ import reach_mcp.sources._threads_playwright as tp
 from reach_mcp.sources import get_source
 
 
-def _edge(pk="3653472235508723805", code="DKzvaQqP_Bd", username="ubuntu_os",
-          text="How would YOU explain Kubernetes to an 8-year-old?",
-          taken_at=1749747851, likes=42, replies=20, reposts=3, quotes=1):
+def _edge(
+    pk="3653472235508723805",
+    code="DKzvaQqP_Bd",
+    username="ubuntu_os",
+    text="How would YOU explain Kubernetes to an 8-year-old?",
+    taken_at=1749747851,
+    likes=42,
+    replies=20,
+    reposts=3,
+    quotes=1,
+):
     return {
         "node": {
             "thread": {
@@ -86,7 +94,10 @@ def test_extract_search_results_finds_nested_edges():
                                     "RelayPrefetchedStreamCache",
                                     "next",
                                     [],
-                                    ["key", {"__bbox": {"result": {"data": {"searchResults": sr}}}}],
+                                    [
+                                        "key",
+                                        {"__bbox": {"result": {"data": {"searchResults": sr}}}},
+                                    ],
                                 ]
                             ]
                         }

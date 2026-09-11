@@ -1,0 +1,10 @@
+# Standard Python pre-commit: run the same lint/format locally that CI runs,
+# so a commit is blocked before it can fail the CI gate (e.g. the I001 import
+# sort that broke main on ruff 0.16). Install once: `pre-commit install`.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.7  # match CI's ruff version so local == CI behavior
+    hooks:
+      - id: ruff          # same as CI's `ruff check .`
+        args: [--fix]
+      - id: ruff-format   # match CI if/when it enforces format

@@ -45,9 +45,13 @@ async def test_linkedin_prefers_exa_over_apify(monkeypatch):
 
     monkeypatch.setattr(li, "_apify_search", fake_apify)
     monkeypatch.setattr(
-        li, "_exa_search",
-        AsyncMock(return_value=[_row("e1", "https://linkedin.com/posts/exa1",
-                                     date="2026-06-28T00:00:00.000Z")]),
+        li,
+        "_exa_search",
+        AsyncMock(
+            return_value=[
+                _row("e1", "https://linkedin.com/posts/exa1", date="2026-06-28T00:00:00.000Z")
+            ]
+        ),
     )
     rows = await get_source("linkedin").fetch("kubernetes", 30, 10)
     assert apify_called["n"] == 0  # exa hit -> Apify untouched
@@ -62,8 +66,11 @@ async def test_linkedin_falls_back_to_apify_when_exa_empty(monkeypatch):
     monkeypatch.setenv("EXA_API_KEY", "k")
     monkeypatch.delenv("SCRAPECREATORS_API_KEY", raising=False)
     monkeypatch.setattr(li, "_exa_search", AsyncMock(return_value=[]))
-    monkeypatch.setattr(li, "_apify_search",
-                        AsyncMock(return_value=[_row("a1", "https://linkedin.com/posts/apify1")]))
+    monkeypatch.setattr(
+        li,
+        "_apify_search",
+        AsyncMock(return_value=[_row("a1", "https://linkedin.com/posts/apify1")]),
+    )
     rows = await get_source("linkedin").fetch("kubernetes", 30, 10)
     assert len(rows) == 1
     assert rows[0].url.endswith("apify1")
@@ -77,14 +84,23 @@ async def test_linkedin_exa_merges_and_brings_dates(monkeypatch):
     monkeypatch.setenv("EXA_API_KEY", "k")
     monkeypatch.delenv("SCRAPECREATORS_API_KEY", raising=False)
     monkeypatch.setattr(
-        li, "_apify_search",
+        li,
+        "_apify_search",
         AsyncMock(return_value=[_row("a1", "https://linkedin.com/posts/apify1")]),
     )
     monkeypatch.setattr(
-        li, "_exa_search",
-        AsyncMock(return_value=[_row("e1", "https://linkedin.com/posts/exa1",
-                                     date="2026-06-28T00:00:00.000Z",
-                                     text="post body opening from exa highlight")]),
+        li,
+        "_exa_search",
+        AsyncMock(
+            return_value=[
+                _row(
+                    "e1",
+                    "https://linkedin.com/posts/exa1",
+                    date="2026-06-28T00:00:00.000Z",
+                    text="post body opening from exa highlight",
+                )
+            ]
+        ),
     )
     rows = await get_source("linkedin").fetch("kubernetes", 30, 10)
     # exa is primary: its dated row wins; Apify is NOT merged in on an exa hit
@@ -107,7 +123,9 @@ async def test_linkedin_exa_not_called_without_key(monkeypatch):
         return []
 
     monkeypatch.setattr(li, "_exa_search", fake_exa)
-    monkeypatch.setattr(li, "_apify_search", AsyncMock(return_value=[_row("a1", "https://linkedin.com/posts/1")]))
+    monkeypatch.setattr(
+        li, "_apify_search", AsyncMock(return_value=[_row("a1", "https://linkedin.com/posts/1")])
+    )
     rows = await get_source("linkedin").fetch("kubernetes", 30, 10)
     assert called["n"] == 0
     assert len(rows) == 1
@@ -121,8 +139,9 @@ async def test_linkedin_exa_failure_doesnt_break_apify(monkeypatch):
     monkeypatch.setenv("APIFY_API_TOKEN", "apify_test")
     monkeypatch.setenv("EXA_API_KEY", "k")
     monkeypatch.delenv("SCRAPECREATORS_API_KEY", raising=False)
-    monkeypatch.setattr(li, "_apify_search",
-                        AsyncMock(return_value=[_row("a1", "https://linkedin.com/posts/1")]))
+    monkeypatch.setattr(
+        li, "_apify_search", AsyncMock(return_value=[_row("a1", "https://linkedin.com/posts/1")])
+    )
     # _exa backend returns [] on failure (402 quota), it doesn't raise
     monkeypatch.setattr(li, "_exa_search", AsyncMock(return_value=[]))
     rows = await get_source("linkedin").fetch("kubernetes", 30, 10)
