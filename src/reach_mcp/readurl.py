@@ -81,7 +81,9 @@ async def _exa_read(url: str, timeout: float) -> str:
 
 
 async def _firecrawl_read(url: str, timeout: float) -> str:
-    """Self-hosted Firecrawl scrape (FIRECRAWL_API_URL), Chromium-rendered."""
+    """Firecrawl scrape via FIRECRAWL_API_URL — self-hosted (:3002) or the
+    key-rotator gateway (same host as EXA). Chromium-rendered; best body.
+    The rotator form ignores the key, so a dummy works when it's the gateway."""
     base = os.environ.get("FIRECRAWL_API_URL", "").strip().rstrip("/")
     if not base:
         return ""
@@ -105,14 +107,18 @@ async def _firecrawl_read(url: str, timeout: float) -> str:
 
 
 async def _tavily_read(url: str, timeout: float) -> str:
-    """Tavily /extract (TAVILY_API_KEY) — JS-rendered, generous free tier."""
-    key = os.environ.get("TAVILY_API_KEY", "").strip()
-    if not key:
-        return ""
+    """Tavily /extract — JS-rendered, generous free tier.
+
+    Supports a key-rotator/proxy gateway via TAVILY_BASE_URL (same pattern as
+    EXA_BASE_URL); the gateway then owns the real API key and the key sent here
+    is a dummy it accepts, so this works without a per-service key in config.
+    """
+    key = os.environ.get("TAVILY_API_KEY", "").strip() or "dummy"
+    base = os.environ.get("TAVILY_BASE_URL", "").strip().rstrip("/") or "https://api.tavily.com"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
-                "https://api.tavily.com/extract",
+                f"{base}/extract",
                 json={"urls": [url]},
                 headers={
                     "Authorization": f"Bearer {key}",
