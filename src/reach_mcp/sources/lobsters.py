@@ -79,9 +79,7 @@ class Lobsters(Source):
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
         client = get_client()
         self.last_notice = None
-        stories = await self._stories(
-            client, [f"{_BASE}/hottest.json", f"{_BASE}/newest.json"]
-        )
+        stories = await self._stories(client, [f"{_BASE}/hottest.json", f"{_BASE}/newest.json"])
         if not stories:
             self.last_notice = "lobste.rs feeds returned nothing (network or block)"
             return []

@@ -117,7 +117,7 @@ def test_searxng_time_range_uses_valid_enum():
     assert _searxng_params("q", 31)["time_range"] == "month"
     assert _searxng_params("q", 90)["time_range"] == "year"
     assert _searxng_params("q", 365)["time_range"] == "year"
-    assert "time_range" not in _searxng_params("q", 400)   # all-time, omit
+    assert "time_range" not in _searxng_params("q", 400)  # all-time, omit
     assert "time_range" not in _searxng_params("q", 1800)
 
 

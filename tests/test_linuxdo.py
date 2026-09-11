@@ -18,9 +18,16 @@ import reach_mcp.sources._linuxdo_playwright as lp
 from reach_mcp.sources import get_source
 
 
-def _topic(tid=2782702, title="claude如何破啊", slug="claude-ru-he-po",
-           posts=12, likes=34, views=567, created="2026-08-25T08:00:00.000Z",
-           username="neo"):
+def _topic(
+    tid=2782702,
+    title="claude如何破啊",
+    slug="claude-ru-he-po",
+    posts=12,
+    likes=34,
+    views=567,
+    created="2026-08-25T08:00:00.000Z",
+    username="neo",
+):
     return {
         "id": tid,
         "title": title,

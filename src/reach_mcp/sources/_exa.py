@@ -29,9 +29,7 @@ def available() -> bool:
     return bool(os.environ.get("EXA_API_KEY", "").strip())
 
 
-async def search(
-    query: str, domain: str, source: str, limit: int, days: int = 0
-) -> list[Row]:
+async def search(query: str, domain: str, source: str, limit: int, days: int = 0) -> list[Row]:
     """Neural search scoped to `domain`, Rows tagged as `source`.
 
     days>0 adds a startPublishedDate filter (ISO). Highlights become the row

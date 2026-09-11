@@ -34,8 +34,10 @@ async def read_url(url: str, timeout: float | None = None) -> str:
     headers = {"Accept": "text/plain", "X-Retain-Images": "none"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
-    budget = timeout if timeout is not None else float(
-        os.environ.get("REACH_MCP_READ_TIMEOUT", str(_DEFAULT_READ_TIMEOUT))
+    budget = (
+        timeout
+        if timeout is not None
+        else float(os.environ.get("REACH_MCP_READ_TIMEOUT", str(_DEFAULT_READ_TIMEOUT)))
     )
     target = f"https://r.jina.ai/{url}"
     try:
