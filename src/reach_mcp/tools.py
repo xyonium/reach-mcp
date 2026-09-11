@@ -12,7 +12,6 @@ from mcp.server.transport_security import TransportSecuritySettings
 from reach_mcp.config import Settings
 from reach_mcp.content import fetch_content
 from reach_mcp.http import PoliteClient
-from reach_mcp.readurl import read_url as jina_read_url
 from reach_mcp.pipeline import (
     Category,
     SourceReport,
@@ -22,6 +21,7 @@ from reach_mcp.pipeline import (
     run_search,
     run_trending,
 )
+from reach_mcp.readurl import read_url as jina_read_url
 from reach_mcp.sources import SOURCES
 from reach_mcp.sources.base import Item, set_client
 from reach_mcp.synthesize import brief, rerank
