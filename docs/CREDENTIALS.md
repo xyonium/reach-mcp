@@ -55,9 +55,14 @@
 1. 注册 → Settings → **Integrations**
 2. 复制 `apify_api_...` token → 设 `APIFY_API_TOKEN`
 
-### 6. GitHub(`GH_TOKEN`)
+### 6. GitHub(`GITHUB_BASE_URL` / `GH_TOKEN`)
 
-[github.com/settings/tokens](https://github.com/settings/tokens) → 创建 **fine-grained token**,只给 `Public Repositories (read-only)`。不配也能搜,但未认证限速 60 req/hr vs 5000 req/hr。
+优先级:`GITHUB_BASE_URL`(proxy) → `GH_TOKEN`(直连) → 匿名直连。
+
+- 有自建 GitHub API proxy(如 firecrawl 栈的 `research-proxy`,自带 token 池轮询)时设 `GITHUB_BASE_URL=http://<proxy-host>`;reach-mcp 不带 token,rotate 在服务端做。proxy 挂了自动回落直连(有 `GH_TOKEN` 用 token,否则匿名),search 报告里会标 fallback。
+- 否则 [github.com/settings/tokens](https://github.com/settings/tokens) → 创建 **fine-grained token**,只给 `Public Repositories (read-only)` → 设 `GH_TOKEN`。
+
+都不配也能搜,但未认证限速 60 req/hr vs 5000 req/hr。
 
 ### 7. Bluesky(`BSKY_HANDLE` + `BSKY_APP_PASSWORD`)
 

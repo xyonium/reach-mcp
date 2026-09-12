@@ -60,6 +60,7 @@ async def test_github_parses_repos():
 
 @pytest.mark.asyncio
 async def test_github_uses_token_when_set(monkeypatch):
+    monkeypatch.delenv("GITHUB_BASE_URL", raising=False)
     monkeypatch.setenv("GH_TOKEN", "ghp_test")
     c = AsyncMock()
     c.get_json = AsyncMock(return_value={"items": []})
@@ -68,6 +69,57 @@ async def test_github_uses_token_when_set(monkeypatch):
     # verify Authorization header was passed
     headers = c.get_json.call_args.kwargs.get("headers", {})
     assert headers.get("Authorization") == "Bearer ghp_test"
+
+
+@pytest.mark.asyncio
+async def test_github_prefers_proxy_when_configured(monkeypatch):
+    monkeypatch.setenv("GITHUB_BASE_URL", "http://firecrawl-research-proxy:3100")
+    monkeypatch.setenv("GH_TOKEN", "ghp_test")
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "success": True,
+            "results": [
+                {
+                    "resultType": "repo_readme",
+                    "repo": "foo/bar",
+                    "readmeUrl": "https://github.com/foo/bar",
+                    "snippet": "a repo",
+                    "contentMd": "# bar\nreadme body",
+                }
+            ],
+        }
+    )
+    set_client(c)
+    src = get_source("github")
+    rows = await src.fetch("q", 30, 10)
+    url = c.get_json.call_args.args[0]
+    headers = c.get_json.call_args.kwargs.get("headers", {})
+    assert url == "http://firecrawl-research-proxy:3100/v2/research/github"
+    assert "Authorization" not in headers
+    assert "proxy" in (src.last_notice or "")
+    assert rows[0].title == "foo/bar"
+    assert rows[0].url == "https://github.com/foo/bar"
+    assert rows[0].author == "foo"
+    assert "readme body" in rows[0].text
+
+
+@pytest.mark.asyncio
+async def test_github_falls_back_to_direct_on_proxy_failure(monkeypatch):
+    monkeypatch.setenv("GITHUB_BASE_URL", "http://firecrawl-research-proxy:3100")
+    monkeypatch.setenv("GH_TOKEN", "ghp_test")
+    c = AsyncMock()
+    c.get_json = AsyncMock(side_effect=[Exception("conn refused"), {"items": []}])
+    set_client(c)
+    src = get_source("github")
+    rows = await src.fetch("q", 30, 10)
+    assert rows == []
+    # second call went to the direct endpoint with the token
+    url = c.get_json.call_args.args[0]
+    headers = c.get_json.call_args.kwargs.get("headers", {})
+    assert url == "https://api.github.com/search/repositories"
+    assert headers.get("Authorization") == "Bearer ghp_test"
+    assert "fallback" in (src.last_notice or "")
 
 
 @pytest.mark.asyncio
