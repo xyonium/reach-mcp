@@ -29,7 +29,7 @@
 | **Free core** | `reddit` | RSS + scrape | none |
 | | `hackernews` | Algolia API | none |
 | | `bluesky` | AT Protocol (public) | `BSKY_HANDLE`/`BSKY_APP_PASSWORD` (optional) |
-| | `github` | GitHub API | `GH_TOKEN` (optional, for higher rate limits) |
+| | `github` | GitHub API | `GITHUB_BASE_URL` (proxy w/ token pool) or `GH_TOKEN` (both optional) |
 | | `arxiv` | arXiv API | none |
 | | `techmeme` | scrape | none |
 | | `polymarket` | public API | none |
@@ -232,6 +232,7 @@ SEARXNG_URL="http://searxng:8080"            # your Searxng instance
 
 # ===== Free sources (optional auth boosts) =====
 GH_TOKEN="ghp_..."                           # GitHub personal access token (higher rate limits)
+# GITHUB_BASE_URL="http://..."               # optional GitHub API proxy (e.g. firecrawl research-proxy); takes priority over GH_TOKEN
 BSKY_HANDLE="you.bsky.social"                # Bluesky handle (optional)
 BSKY_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"      # Bluesky app password (optional)
 YTDLP_PROXY="http://proxy:8080"              # proxy for yt-dlp (optional)
@@ -290,13 +291,18 @@ REACH_MCP_MAX_RETRIES="3"                    # max retries on transient errors (
 2. Create a new app password; copy the generated value
 3. Set `BSKY_HANDLE=yourhandle.bsky.social` and `BSKY_APP_PASSWORD=<generated password>`
 
-#### GitHub (`GH_TOKEN`)
+#### GitHub (`GITHUB_BASE_URL` / `GH_TOKEN`)
 
-1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
-2. Create a token with `Public Repositories (read-only)` access
-3. Set `GH_TOKEN=github_pat_...`
+Backend priority: `GITHUB_BASE_URL` (proxy) → `GH_TOKEN` (direct) → anonymous direct.
 
-Without `GH_TOKEN`, GitHub search still works but hits unauthenticated rate limits (60 req/hr vs 5000 req/hr).
+1. If you run a GitHub API proxy with its own token pool (e.g. the firecrawl
+   `research-proxy`), set `GITHUB_BASE_URL=http://<proxy-host>` — no token is
+   sent by reach-mcp; rotation happens server-side. On proxy failure the call
+   falls back to the direct path (token if set, else anonymous) and the
+   search report notes the fallback.
+2. Otherwise, GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens; create a token with `Public Repositories (read-only)` access; set `GH_TOKEN=github_pat_...`.
+
+Without either, GitHub search still works but hits unauthenticated rate limits (60 req/hr vs 5000 req/hr).
 
 #### Truth Social (`TRUTHSOCIAL_TOKEN`)
 
