@@ -273,6 +273,118 @@ async def test_apify_run_actor_sync_http_branch(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_polymarket_uses_public_search_not_markets():
+    """/markets?query= is ignored upstream (returns the same hot list for any q);
+    the source must hit /public-search and pick markets from returned events."""
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "events": [
+                {
+                    "id": "907966",
+                    "slug": "what-price-will-wti-hit-in-september-2026",
+                    "title": "What will WTI Crude Oil (WTI) hit in September 2026?",
+                    "closed": False,
+                    "endDate": "2026-10-01T00:00:00Z",
+                    "markets": [
+                        {
+                            "id": "252706",
+                            "question": "Will WTI hit $90 in September 2026?",
+                            "slug": "will-wti-hit-90-september-2026",
+                            "closed": False,
+                            "volume": "123456.7",
+                            "outcomePrices": '["0.32", "0.68"]',
+                            "description": "Resolves Yes if WTI trades at $90+.",
+                            "endDate": "2026-10-01T00:00:00Z",
+                        }
+                    ],
+                }
+            ],
+            "pagination": {"hasMore": False, "totalResults": 1},
+        }
+    )
+    set_client(c)
+    rows = await get_source("polymarket").fetch("crude oil WTI price", 90, 10)
+    url = c.get_json.call_args.args[0]
+    assert url == "https://gamma-api.polymarket.com/public-search"
+    assert rows and "WTI" in rows[0].title
+    assert rows[0].engagement["volume"] == 123456.7
+    assert rows[0].engagement["prices"] == '["0.32", "0.68"]'
+    assert rows[0].url == "https://polymarket.com/event/what-price-will-wti-hit-in-september-2026"
+    assert "Resolves Yes" in rows[0].text
+
+
+@pytest.mark.asyncio
+async def test_polymarket_skips_closed_events_and_markets():
+    c = AsyncMock()
+    c.get_json = AsyncMock(
+        return_value={
+            "events": [
+                {"id": "e1", "slug": "closed-ev", "title": "Old", "closed": True, "markets": []},
+                {
+                    "id": "e2",
+                    "slug": "open-ev",
+                    "title": "Open event",
+                    "closed": False,
+                    "endDate": "2027-01-01T00:00:00Z",
+                    "markets": [
+                        {"id": "m1", "question": "closed mkt", "closed": True, "slug": "s1"},
+                        {
+                            "id": "m2",
+                            "question": "open mkt",
+                            "closed": False,
+                            "slug": "s2",
+                            "volume": "10",
+                            "outcomePrices": "[]",
+                            "description": "d",
+                        },
+                    ],
+                },
+            ]
+        }
+    )
+    set_client(c)
+    rows = await get_source("polymarket").fetch("anything", 90, 10)
+    assert [r.id for r in rows] == ["m2"]
+
+
+@pytest.mark.asyncio
+async def test_polymarket_relaxes_long_queries_until_hit():
+    """Zero results for the full phrase -> drop tail words until something hits."""
+    c = AsyncMock()
+    full_empty = {"events": []}
+    hit = {
+        "events": [
+            {
+                "id": "e9",
+                "slug": "iran-ceasefire",
+                "title": "Iran ceasefire",
+                "closed": False,
+                "endDate": "2026-12-01T00:00:00Z",
+                "markets": [
+                    {
+                        "id": "m9",
+                        "question": "Iran ceasefire by December?",
+                        "slug": "iran-ceasefire",
+                        "closed": False,
+                        "volume": "1000",
+                        "outcomePrices": "[]",
+                        "description": "",
+                    }
+                ],
+            }
+        ]
+    }
+    c.get_json = AsyncMock(side_effect=[full_empty, full_empty, hit])
+    set_client(c)
+    src = get_source("polymarket")
+    rows = await src.fetch("iran ceasefire hormuz blockade", 90, 10)
+    assert rows and rows[0].id == "m9"
+    assert c.get_json.call_count == 3  # 4-word, 3-word empty, 2-word hit
+    assert "relaxed" in (src.last_notice or "")
+
+
+@pytest.mark.asyncio
 async def test_apify_to_row_normalizes_fields():
     """_to_row maps common Apify field aliases."""
     from reach_mcp.sources._apify import _to_row

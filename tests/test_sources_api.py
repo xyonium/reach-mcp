@@ -55,19 +55,31 @@ async def test_arxiv_parses_entries():
 
 
 @pytest.mark.asyncio
-async def test_polymarket_parses_markets():
+async def test_polymarket_parses_market_rows_from_events():
     set_client(
         _client_returns(
-            [
-                {
-                    "id": "1",
-                    "question": "Will X?",
-                    "slug": "will-x",
-                    "volume": "1000",
-                    "outcomePrices": '["0.6","0.4"]',
-                    "endDate": "2026-08-01T00:00:00Z",
-                }
-            ]
+            {
+                "events": [
+                    {
+                        "id": "e1",
+                        "slug": "will-x",
+                        "title": "X event",
+                        "closed": False,
+                        "endDate": "2026-08-01T00:00:00Z",
+                        "markets": [
+                            {
+                                "id": "1",
+                                "question": "Will X?",
+                                "slug": "will-x",
+                                "closed": False,
+                                "volume": "1000",
+                                "outcomePrices": '["0.6","0.4"]',
+                                "endDate": "2026-08-01T00:00:00Z",
+                            }
+                        ],
+                    }
+                ]
+            }
         )
     )
     rows = await get_source("polymarket").fetch("q", 30, 10)
