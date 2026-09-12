@@ -80,7 +80,7 @@ fewer results on some backends — the agent should tune the query per source.
 | `arxiv` | arXiv syntax: `all:`, `ti:`, `au:`, quoted, boolean | Official Atom API |
 | `web` | Space-separated (Searxng/Brave) | Free-text |
 | `rss` | Substring match on title/summary | Filter over configured feeds |
-| `v2ex` | Substring match on latest topics | search endpoint removed; latest+filter |
+| `v2ex` | Keyword search via sov2ex ES index | Topics + replies |
 | `youtube` | yt-dlp search query | Free-text |
 | `xiaoyuzhou` | Podcast keyword search | Requires login token |
 
@@ -501,6 +501,21 @@ If you're coming from the `last30days` MCP server (mvanhorn/last30days-skill), h
 - **`list_sources`** shows exactly what's configured and what each source needs
 - **No `INCLUDE_SOURCES` global filter** -- just pass `sources=[...]` per search
 - **No `--hiring-signals`, `--discover`, `--watchlist`** -- these were last30days CLI features; reach-mcp is server-only
+
+## Development
+
+```bash
+python3 -m pytest tests/ -q          # unit tests (mocked HTTP; live tests deselected)
+python3 -m pytest tests/ -m real -q  # live health-check: one evergreen query per source
+```
+
+The `real` marker runs one "must-hit" query per available source against the
+production endpoint (`tests/test_real_sources.py`) and fails on 0 rows — catches
+upstream endpoint drift and silently-ignored query params that mocked tests
+can't (that class of bug is what the polymarket `query` param turned out to be).
+Credential-gated sources skip when the env var isn't set; `SEARXNG_URL`-backed
+sources skip when searxng isn't reachable. One sweep = one request per source,
+so it's safe to run from a laptop or the mcpo container; excluded from CI.
 
 ## License
 

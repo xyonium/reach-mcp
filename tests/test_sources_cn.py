@@ -12,20 +12,27 @@ from reach_mcp.sources.base import Row, set_client
 async def test_v2ex_parses_topics():
     c = AsyncMock()
     c.get_json = AsyncMock(
-        return_value=[
-            {
-                "id": 1,
-                "title": "Python tips",
-                "url": "https://v2ex.com/t/1",
-                "member": {"username": "u"},
-                "created": 1751328000,
-                "replies": 3,
-            }
-        ]
+        return_value={
+            "hits": [
+                {
+                    "_id": "1",
+                    "_source": {
+                        "id": 1,
+                        "title": "Python tips",
+                        "content": "body",
+                        "created": 1751328000,
+                        "replies": 3,
+                        "member": {"username": "u"},
+                    },
+                    "highlight": {"content": ["<em>Python</em> tips body"]},
+                }
+            ]
+        }
     )
     set_client(c)
     rows = await get_source("v2ex").fetch("python", 30, 10)
     assert rows and rows[0].title == "Python tips" and rows[0].engagement["replies"] == 3
+    assert rows[0].text.startswith("Python tips body")  # <em> tags stripped from highlight
 
 
 @pytest.mark.asyncio

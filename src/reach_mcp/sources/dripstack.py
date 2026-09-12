@@ -1,6 +1,6 @@
 """DripStack - free, keyless search over premium financial newsletters.
 
-Public JSON API at https://dripstack.xyz/api/v1/search - no key, no payment.
+Public JSON API at https://dripstack.com/api/v1/search - no key, no payment.
 Indexes Substack-style analyst write-ups; returns metadata + snippets
 (full articles are behind a paid layer, which we deliberately do not touch).
 
@@ -22,7 +22,7 @@ class Dripstack(Source):
         "DripStack: free keyless search over premium financial newsletters "
         "(analyst/Substack write-ups). Best for ticker/company research."
     )
-    host = "dripstack.xyz"
+    host = "dripstack.com"
     needs_auth = False
     required_env = ()
 
@@ -30,9 +30,12 @@ class Dripstack(Source):
         client = get_client()
         try:
             data = await client.get_json(
-                "https://dripstack.xyz/api/v1/search",
+                "https://dripstack.com/api/v1/search",
                 params={"q": query, "limit": str(min(limit, 30))},
-                headers={"User-Agent": "reach-mcp/0.1"},
+                # plain UA gets 308-canary'd by the CDN; browser UA serves 200 JSON
+                headers={
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0"
+                },
             )
         except Exception:
             return []
@@ -49,9 +52,9 @@ class Dripstack(Source):
             url = item.get("url") or item.get("link") or ""
             if not url and slug:
                 url = (
-                    f"https://dripstack.xyz/{pub}/{slug}"
+                    f"https://dripstack.com/{pub}/{slug}"
                     if pub
-                    else f"https://dripstack.xyz/{slug}"
+                    else f"https://dripstack.com/{slug}"
                 )
             snippet = (
                 item.get("subtitle")
