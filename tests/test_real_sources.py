@@ -81,7 +81,7 @@ _CONFIG_SKIP = {
     "bluesky": "SEARXNG_URL",  # api.bsky.app 403s datacenter IPs; fallback needs searxng
     "rss": "RSS_FEEDS",  # feed list must be configured
     "xueqiu": "XUEQIU_COOKIE",  # anonymous suggest API now returns 400016 — cookie is required
-    "arxiv": "ARXIV_OK",  # arxiv's Fastly edge resets GCP/DO box TLS; set ARXIV_OK=1 in envs that reach it
+    "arxiv": "PROBE",  # probe export.arxiv.org before running; skip on connect fail (egress blocked), ARXIV_OK=1 forces run
 }
 
 
@@ -93,8 +93,23 @@ _CONFIG_SKIP = {
     ids=sorted(REAL_QUERIES),
 )
 async def test_real_source_returns_rows(source: str, query: str, _shared_client):
-    if source in _CONFIG_SKIP and not os.environ.get(_CONFIG_SKIP[source], "").strip():
-        pytest.skip(f"{source}: {_CONFIG_SKIP[source]} not configured")
+    if source in _CONFIG_SKIP:
+        gate = _CONFIG_SKIP[source]
+        if gate == "PROBE":
+            import httpx
+
+            force = os.environ.get("ARXIV_OK", "").strip() == "1"
+            if not force:
+                try:
+                    async with httpx.AsyncClient(timeout=5) as hc:
+                        await hc.get(
+                            "https://export.arxiv.org/api/query",
+                            params={"search_query": "all:test", "max_results": "1"},
+                        )
+                except httpx.HTTPError as e:
+                    pytest.skip(f"arxiv: export.arxiv.org unreachable from this egress ({type(e).__name__}); ARXIV_OK=1 forces the test")
+        elif not os.environ.get(gate, "").strip():
+            pytest.skip(f"{source}: {gate} not configured")
     src = get_source(source)
     if not src.available():
         pytest.skip(f"{source}: backend credential not set")

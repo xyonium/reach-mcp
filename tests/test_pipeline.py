@@ -145,6 +145,16 @@ def test_weibo_zhihu_in_social_category():
     assert "zhihu" in CATEGORIES["social"]
 
 
+def test_web_is_a_valid_category():
+    """LLM callers keep passing category=["web"] (it's a source name listed in
+    the category sentence of the tool description) — accept it as a category
+    that expands to the `web` source instead of failing signature validation."""
+    assert CATEGORIES["web"] == ["web"]
+    assert expand_categories(None, ["web"]) == ["web"]
+    # still a social member too — the grouped-covers-every-source invariant
+    assert "web" in CATEGORIES["social"]
+
+
 def test_source_report_notice_field_renders_in_summary():
     """Degraded-but-working sources surface a NOTICE line (e.g. zhihu cookie
     search fell back to the hot list — data is fine but the agent should know)."""

@@ -80,9 +80,15 @@ CATEGORIES: dict[str, list[str]] = {
     "tech": ["arxiv", "techmeme", "digg", "dripstack", "hackernews"],
     "polec": ["truthsocial", "xueqiu", "stocktwits", "polymarket"],
     "podcast": ["xiaoyuzhou"],
+    # General web search — LLM callers keep asking for a "web" category (and
+    # the tool description lists "web" as a source name right in the category
+    # sentence), so accept it instead of 500-ing the whole call. The `web`
+    # source is also a member of `social`, so the every-source-grouped
+    # invariant in test_categories_cover_every_registered_source still holds.
+    "web": ["web"],
 }
 
-Category = Literal["social", "it", "tech", "polec", "podcast"]
+Category = Literal["social", "it", "tech", "polec", "podcast", "web"]
 
 # Sources left out of the default (no-explicit-sources) sweep. Opt-in only:
 # podcast transcription is too slow for a default search.
