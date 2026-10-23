@@ -3,7 +3,7 @@
 Search requires a 小宇宙 login token (`XIAOYUZHOU_ACCESS_TOKEN`, obtained via
 phone-SMS login — see docs/CREDENTIALS.md). Without a token the source returns
 [] (gated off). Transcription uses an OpenAI-compatible Whisper endpoint
-(`WHISPER_BASE_URL`, default http://api.openai.com/v1) — point it at
+(`WHISPER_BASE_URL`, default https://api.openai.com/v1) — point it at
 any self-hosted LocalAI; the API key may be empty.
 """
 

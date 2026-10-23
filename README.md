@@ -251,7 +251,7 @@ SCRAPECREATORS_API_KEY="sc_..."              # ScrapeCreators key (tiktok + inst
 XHS_MCP_URL="http://xiaohongshu-mcp:18060/mcp"  # xiaohongshu-mcp companion service URL
 XIAOYUZHOU_ACCESS_TOKEN="..."                # 小宇宙 access token (phone-SMS login; required for search)
 XIAOYUZHOU_REFRESH_TOKEN="..."               # 小宇宙 refresh token (for API; access+refresh both needed)
-WHISPER_BASE_URL="http://api.openai.com/v1"  # OpenAI-compatible whisper endpoint (xiaoyuzhou transcription)
+WHISPER_BASE_URL="https://api.openai.com/v1"  # default; point at any OpenAI-compatible whisper endpoint (xiaoyuzhou transcription)
 WHISPER_API_KEY=""                           # optional; LocalAI doesn't check it
 WHISPER_MODEL="whisper-large"                # model name (default: whisper-large)
 XUEQIU_COOKIE="xq_a_token=...; u=..."        # 雪球 login cookie string (from Chrome; required for search)
@@ -453,7 +453,7 @@ Podcast search + Whisper transcription. **Search requires a 小宇宙 account to
 
 1. Login flow: the app sends a code to your phone, which returns `accessToken`/`refreshToken` (see [xiaoyuzhou-api](https://github.com/ylw1997/xiaoyuzhou-api) for the exact flow)
 2. Set `XIAOYUZHOU_ACCESS_TOKEN=...`
-3. Transcription uses an OpenAI-compatible Whisper endpoint (`WHISPER_BASE_URL`, default `http://api.openai.com/v1`, model `whisper-large`). Point it at any self-hosted LocalAI or Groq's `api.groq.com/openai/v1` — the API key may be empty if your server doesn't check it.
+3. Transcription uses an OpenAI-compatible Whisper endpoint (`WHISPER_BASE_URL`, default `https://api.openai.com/v1`, model `whisper-large`). Point it at any self-hosted LocalAI or Groq's `api.groq.com/openai/v1` — the API key may be empty if your server doesn't check it.
 
 Audio constraint (Whisper): files ≤ 25 MB, formats mp3/mp4/mpeg/mpga/m4a/wav/webm; no explicit duration cap at the API layer.
 

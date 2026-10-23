@@ -1,7 +1,7 @@
 """Whisper transcription via an OpenAI-compatible /v1/audio/transcriptions endpoint.
 
 Self-hosted LocalAI etc. — GROQ_API_KEY is not used. Point WHISPER_BASE_URL at
-any OpenAI-compatible whisper server, e.g. http://api.openai.com/v1.
+any OpenAI-compatible whisper server (default https://api.openai.com/v1).
 API key may be empty (LocalAI doesn't check it). Model default whisper-large.
 
 Audio constraints (OpenAI Whisper): file <= 25 MB, formats mp3/mp4/mpeg/mpga/

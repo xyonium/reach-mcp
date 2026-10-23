@@ -77,7 +77,7 @@ class Settings:
     # LocalAI etc.). GROQ_API_KEY is NOT used — point WHISPER_BASE_URL at any
     # OpenAI-compatible whisper endpoint. Key may be empty (LocalAI doesn't check).
     whisper_base_url: str = field(
-        default_factory=lambda: _env("WHISPER_BASE_URL", "http://api.openai.com/v1")
+        default_factory=lambda: _env("WHISPER_BASE_URL", "https://api.openai.com/v1")
     )
     whisper_api_key: str = field(default_factory=lambda: _env("WHISPER_API_KEY"))
     whisper_model: str = field(default_factory=lambda: _env("WHISPER_MODEL", "whisper-large"))

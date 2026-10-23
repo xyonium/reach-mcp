@@ -55,7 +55,7 @@ services:
       # ===== Xiaoyuzhou / 小宇宙 =====
       # XIAOYUZHOU_ACCESS_TOKEN: "..."  # phone-SMS login token (required for search)
       # XIAOYUZHOU_REFRESH_TOKEN: "..."  # refresh token (access+refresh both needed)
-      # WHISPER_BASE_URL: "http://api.openai.com/v1"  # OpenAI-compatible whisper
+      # WHISPER_BASE_URL: "https://api.openai.com/v1"  # default; point at any OpenAI-compatible whisper
       # WHISPER_API_KEY: ""   # optional (LocalAI doesn't check)
       # WHISPER_MODEL: "whisper-large"
 

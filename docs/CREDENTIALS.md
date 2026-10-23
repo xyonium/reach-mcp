@@ -192,7 +192,7 @@ curl -X POST https://podcaster-api.xiaoyuzhoufm.com/v1/auth/login-with-sms \
 没有注册?打开小宇宙 App 用手机号注册一个即可(免费,普通听众账号就行)。
 
 **转写走 OpenAI 兼容 Whisper**(不再用 Groq):
-  1. 默认指向自托管 `WHISPER_BASE_URL=http://api.openai.com/v1`(LocalAI,模型 `whisper-large`)
+  1. 默认指向 OpenAI 官方 `WHISPER_BASE_URL=https://api.openai.com/v1`(模型 `whisper-large`；也可指向自托管 LocalAI 等 OpenAI 兼容端点)
   2. `WHISPER_API_KEY` 可空(LocalAI 不校验);`WHISPER_MODEL` 默认 `whisper-large`
   3. 换任意 OpenAI 兼容端点即可(如 Groq 的 `api.groq.com/openai/v1`)
 
