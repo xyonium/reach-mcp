@@ -7,7 +7,7 @@ discovery ladder (all verified 2026-08-29):
 1. exa includeDomains:quora.com + highlights — answer-content snippets + some
    publishedDates (EXA_API_KEY, metered but the richest discovery);
 2. Searxng site:quora.com — free, title+thin-snippet, no dates;
-3. Apify quora-search-scraper — engagement (upvotes/views), paid credits.
+3. Apify google-forums-search-api (site:quora.com) — paid credits.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ class Quora(Source):
     name = "quora"
     description = (
         "Quora Q&A search via exa highlights (EXA_API_KEY, answer-rich + dates), "
-        "Searxng site:-scope (free), or Apify (APIFY_API_TOKEN, upvotes/views)."
+        "Searxng site:-scope (free), or Apify (APIFY_API_TOKEN, Google Forums)."
     )
     host = "www.quora.com"
     needs_auth = True
@@ -80,7 +80,7 @@ class Quora(Source):
         rows = await self._searxng(query, days, limit)
         if rows:
             return rows
-        # 3. Apify: engagement (upvotes/views), paid credits
+        # 3. Apify: Google Forums search scoped to quora.com, paid credits
         if os.environ.get("APIFY_API_TOKEN", "").strip():
             return await _apify_fetch(query, limit)
         return []

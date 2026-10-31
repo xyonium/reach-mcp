@@ -58,7 +58,7 @@
 | | `pinterest` | Apify / OpenCLI / ScrapeCreators | `APIFY_API_TOKEN` ($5/mo); `SCRAPECREATORS_API_KEY`; or `opencli` on PATH |
 | | `threads` | playwright SSR scrape (free, optional) / Apify | none (with playwright+chromium installed); else `APIFY_API_TOKEN` ($5/mo) |
 | **Binary** *(optional)* | `digg` | `digg-pp-cli` | none (needs the CLI on PATH) |
-| **Apify** | `quora` | Apify quora-search-scraper | `APIFY_API_TOKEN` ($5/mo recurring) |
+| **Apify** | `quora` | Apify google-forums-search-api (site:quora.com) | `APIFY_API_TOKEN` ($5/mo recurring) |
 
 > 💰 **Apify gives $5 free credits EVERY MONTH** (recurring, not one-time) on the Free plan -- enough for hundreds of search runs. Set `APIFY_API_TOKEN` to enable quora + boost tiktok/threads/instagram/pinterest/linkedin. tiktok and threads have FREE playwright backends (in-page fetch / SSR scrape) that need no credential at all when playwright+chromium is installed.
 
@@ -431,7 +431,7 @@ Digg is auto-enabled when the `digg-pp-cli` binary is on `PATH`. Built from the 
 
 Apify's Free plan gives **$5 in credits every month** (recurring, not one-time) -- enough for hundreds of search runs. One token enables:
 
-- `quora` -- via the `apify/quora-search-scraper` Actor (primary path)
+- `quora` -- via the `johnvc/google-forums-search-api` Actor (primary path)
 - `threads` -- fallback when the free playwright SSR backend isn't installed
 - `tiktok` / `instagram` / `pinterest` -- Apify is the preferred backend
 

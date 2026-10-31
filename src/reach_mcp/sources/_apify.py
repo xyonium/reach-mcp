@@ -235,53 +235,50 @@ async def fetch_linkedin_posts(query: str, limit: int) -> list[Row]:
 
 
 async def fetch_quora(query: str, limit: int) -> list[Row]:
-    """Quora Q&A via api-empire/quora-search-scraper (keyword search).
+    """Quora threads via johnvc/google-forums-search-api (Google's Forums tab).
 
-    Actor verified 2026-08: searchQueries[] + maxResults returns questions and
-    answers with engagement (upvotes, comments, views). No login/cookies.
+    The earlier api-empire/quora-search-scraper returns 404 on the Apify API
+    (checked 2026-10-30). This Actor takes a single `q` (a site:quora.com
+    prefix scopes it to Quora) and `max_pages` (~10 results per page), and
+    returns ONE item per results page with the threads in `forum_results`.
+    It carries no upvote/view counts, so engagement stays empty like the
+    Searxng path.
     """
     items = await run_actor_sync(
-        "api-empire/quora-search-scraper",
+        "johnvc/google-forums-search-api",
         {
-            "searchQueries": [query],
-            "maxResults": min(limit, 30),
+            "q": f"site:quora.com {query}",
+            "max_pages": max(1, min(-(-limit // 10), 3)),
         },
     )
-    return [_to_row_quora(it) for it in items[:limit]]
+    rows: list[Row] = []
+    for page in items:
+        for entry in page.get("forum_results") or []:
+            row = _to_row_quora(entry)
+            if row.url and "quora.com" in row.url:
+                rows.append(row)
+    return rows[:limit]
 
 
 def _to_row_quora(item: dict) -> Row:
-    """Normalize an api-empire/quora-search-scraper item into a Row.
+    """Normalize one johnvc/google-forums-search-api forum entry into a Row.
 
-    Result shape (question or answer): {type, question/title, answer/text,
-    url, author/username, upvotes/upvote_count, comments/comment_count,
-    views/view_count, shares/share_count, created_at/timestamp}. Field aliases
-    vary between question and answer records.
+    Entry shape: {position, title, link, snippet, source, displayed_meta}.
+    displayed_meta is a display string like "20+ comments · 9 years ago", not
+    numbers or an ISO date, so it goes into the text rather than engagement.
     """
-    # An answer record carries its parent question as the title context.
-    title = item.get("question") or item.get("title") or item.get("question_title") or ""
-    text = (
-        item.get("answer")
-        or item.get("text")
-        or item.get("content")
-        or item.get("answer_text")
-        or ""
-    )
-    url = _str_field(item, "url", "question_url", "answer_url", "link", "permalink")
+    url = _str_field(item, "link", "url")
+    snippet = str(item.get("snippet") or "")
+    meta = str(item.get("displayed_meta") or "")
     return Row(
         source="quora",
-        id=_str_field(item, "id", "question_id", "answer_id") or url,
-        title=title[:120],
+        id=url,
+        title=str(item.get("title") or "")[:120],
         url=url,
-        author=_str_field(item, "author", "username", "author_name") or None,
-        date=_str_field(item, "created_at", "timestamp", "date", "posted_at"),
-        engagement={
-            "upvotes": item.get("upvotes") or item.get("upvote_count") or 0,
-            "comments": item.get("comments") or item.get("comment_count") or 0,
-            "views": item.get("views") or item.get("view_count") or 0,
-            "shares": item.get("shares") or item.get("share_count") or 0,
-        },
-        text=snip(text),
+        author=None,
+        date=None,
+        engagement={},
+        text=snip(f"{snippet} ({meta})" if meta else snippet),
     )
 
 
