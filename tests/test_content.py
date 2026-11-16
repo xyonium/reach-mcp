@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 
 from reach_mcp.config import Settings
@@ -225,3 +227,162 @@ def test_looks_walled_detects_consent_and_short():
     assert _looks_walled("Enable JavaScript to run this app")
     assert _looks_walled("tiny")  # too short to be a body
     assert not _looks_walled("A real paragraph of content. " * 30)  # long, no wall markers
+
+
+@pytest.mark.parametrize(
+    "base_url,want",
+    [
+        (
+            "http://api-key-rotator:8788/firecrawl",
+            "http://api-key-rotator:8788/firecrawl/v2/scrape",
+        ),
+        (
+            "http://api-key-rotator:8788/firecrawl/",
+            "http://api-key-rotator:8788/firecrawl/v2/scrape",
+        ),
+        (
+            "http://api-key-rotator:8788/firecrawl/v2",
+            "http://api-key-rotator:8788/firecrawl/v2/scrape",
+        ),
+        (
+            "http://api-key-rotator:8788/firecrawl/v2/",
+            "http://api-key-rotator:8788/firecrawl/v2/scrape",
+        ),
+        ("https://api.firecrawl.dev/v1/", "https://api.firecrawl.dev/v2/scrape"),
+        ("https://api.firecrawl.dev/v2/scrape", "https://api.firecrawl.dev/v2/scrape"),
+        ("https://api.firecrawl.dev/v1/scrape/", "https://api.firecrawl.dev/v2/scrape"),
+        ("http://firecrawl:3002", "http://firecrawl:3002/v2/scrape"),
+    ],
+)
+def test_firecrawl_scrape_url_normalization(base_url: str, want: str):
+    from reach_mcp.readurl import _firecrawl_scrape_url
+
+    assert _firecrawl_scrape_url(base_url) == want
+
+
+def _mock_firecrawl_client(monkeypatch, handler):
+    import reach_mcp.readurl as ru
+
+    real_async_client = ru.httpx.AsyncClient
+
+    def factory(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(handler)
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(ru.httpx, "AsyncClient", factory)
+
+
+@pytest.mark.asyncio
+async def test_firecrawl_read_uses_v2_scrape_and_keyless_omits_auth(monkeypatch):
+    import reach_mcp.readurl as ru
+
+    monkeypatch.setenv("FIRECRAWL_API_URL", "http://api-key-rotator:8788/firecrawl/")
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "   ")
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["headers"] = dict(request.headers)
+        seen["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"success": True, "data": {"markdown": "  # Hello v2  "}})
+
+    _mock_firecrawl_client(monkeypatch, handler)
+    out = await ru._firecrawl_read("https://example.com/page", timeout=90)
+    assert out == "# Hello v2"
+    assert seen["url"] == "http://api-key-rotator:8788/firecrawl/v2/scrape"
+    assert "authorization" not in seen["headers"]
+    assert seen["body"] == {
+        "url": "https://example.com/page",
+        "formats": ["markdown"],
+        "onlyMainContent": True,
+        "timeout": 90000,
+    }
+
+
+@pytest.mark.asyncio
+async def test_firecrawl_read_sends_bearer_and_clamps_timeout(monkeypatch):
+    import reach_mcp.readurl as ru
+
+    monkeypatch.setenv("FIRECRAWL_API_URL", "https://api.firecrawl.dev/v1")
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-test-key")
+    seen_timeouts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers.get("authorization") == "Bearer fc-test-key"
+        assert str(request.url) == "https://api.firecrawl.dev/v2/scrape"
+        body = json.loads(request.content.decode("utf-8"))
+        seen_timeouts.append(body["timeout"])
+        return httpx.Response(200, json={"success": True, "data": {"markdown": "ok"}})
+
+    _mock_firecrawl_client(monkeypatch, handler)
+    assert await ru._firecrawl_read("https://example.com", timeout=0.2) == "ok"
+    assert await ru._firecrawl_read("https://example.com", timeout=600) == "ok"
+    assert seen_timeouts == [1000, 300000]
+
+
+@pytest.mark.asyncio
+async def test_firecrawl_read_rejects_failure_envelope_and_http_errors(monkeypatch):
+    import reach_mcp.readurl as ru
+
+    monkeypatch.setenv("FIRECRAWL_API_URL", "http://api-key-rotator:8788/firecrawl")
+    responses = iter(
+        [
+            httpx.Response(
+                200,
+                json={
+                    "success": False,
+                    "error": "Insufficient credits",
+                    "data": {"markdown": "should not return"},
+                },
+            ),
+            httpx.Response(200, json={"success": True, "data": None}),
+            httpx.Response(200, json={"success": True, "data": {"markdown": ["unexpected"]}}),
+            httpx.Response(410, json={"success": False, "error": "Gone"}),
+        ]
+    )
+
+    _mock_firecrawl_client(monkeypatch, lambda _req: next(responses))
+    assert await ru._firecrawl_read("https://example.com", timeout=30) == ""
+    assert await ru._firecrawl_read("https://example.com", timeout=30) == ""
+    assert await ru._firecrawl_read("https://example.com", timeout=30) == ""
+    assert await ru._firecrawl_read("https://example.com", timeout=30) == ""
+
+
+@pytest.mark.asyncio
+async def test_readurl_falls_back_to_tavily_when_firecrawl_fails(monkeypatch):
+    import reach_mcp.readurl as ru
+
+    monkeypatch.setenv("FIRECRAWL_API_URL", "http://api-key-rotator:8788/firecrawl")
+    monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+
+    async def _empty(*_a, **_k):
+        return ""
+
+    tavily_body = "Recovered via Tavily fallback. " * 25
+
+    monkeypatch.setattr(ru, "_exa_read", _empty)
+    monkeypatch.setattr(ru, "_jina_read", _empty)
+    monkeypatch.setattr(ru, "_tavily_read", lambda _u, _t: AsyncMock(return_value=tavily_body)())
+    _mock_firecrawl_client(
+        monkeypatch,
+        lambda _req: httpx.Response(410, json={"success": False, "error": "Gone"}),
+    )
+
+    assert await ru.read_url("https://example.com") == tavily_body
+
+
+@pytest.mark.asyncio
+async def test_firecrawl_read_noop_without_base_url(monkeypatch):
+    import reach_mcp.readurl as ru
+
+    monkeypatch.delenv("FIRECRAWL_API_URL", raising=False)
+    called = False
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(200, json={})
+
+    _mock_firecrawl_client(monkeypatch, handler)
+    assert await ru._firecrawl_read("https://example.com", timeout=30) == ""
+    assert not called
