@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reach-mcp"
-version = "0.7.6"
+version = "0.7.7"
 description = "Multi-source search MCP server for AI agents. Search Reddit, X, YouTube, HN, GitHub, arXiv, Polymarket, 微博, 知乎, 豆瓣, 头条, 雪球, V2EX, B站, 小宇宙 & more — 30 sources across Chinese & English platforms with adjustable time window, source/category scoping, trending hot lists, and optional LLM synthesis."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -42,6 +42,16 @@ reach-mcp = "reach_mcp.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+reach_mcp = [
+    "vendor/bird-search/*.mjs",
+    "vendor/bird-search/*.json",
+    "vendor/bird-search/LICENSE",
+    "vendor/bird-search/*.md",
+    "vendor/bird-search/lib/*.js",
+    "vendor/bird-search/lib/*.json",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

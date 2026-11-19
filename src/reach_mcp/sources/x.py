@@ -2,8 +2,10 @@
 
 Preferred backend mirrors last30days' bird_x: a vendored @steipete/bird
 search wrapper run via Node.js, authenticated with AUTH_TOKEN+CT0 cookies.
-Falls back to the legacy api.x.com search/adaptive.json cookie endpoint when
-node/bird-search.mjs is unavailable.
+The wrapper is bundled in this package (src/reach_mcp/vendor/bird-search) and
+loaded from the installed package by default; set REACH_MCP_BIRD_SEARCH_MJS
+to override it for ops. Falls back to the legacy api.x.com
+search/adaptive.json cookie endpoint when node/bird-search.mjs is unavailable.
 
 X search is literal keyword AND matching — all words in the query must appear
 in results, so long/multi-word queries may return few or no results.
@@ -29,10 +31,13 @@ _UA = (
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 
-# Path to last30days' vendored bird-search.mjs (shared with the last30days
-# deployment). reach-mcp does NOT vendor it; it reuses the one last30days ships.
-_BIRD_SEARCH_MJS = (
-    Path("/config/last30days/cache/last30days-pp-mcp/v3.18.0/lib/vendor")
+# Bundled bird-search.mjs (vendored from @steipete/bird, MIT). Resolve it
+# relative to the installed package so reach-mcp no longer depends on the
+# last30days cache layout. REACH_MCP_BIRD_SEARCH_MJS is an ops escape hatch.
+_BIRD_SEARCH_MJS = Path(
+    os.environ.get("REACH_MCP_BIRD_SEARCH_MJS")
+    or Path(__file__).resolve().parent.parent
+    / "vendor"
     / "bird-search"
     / "bird-search.mjs"
 )
