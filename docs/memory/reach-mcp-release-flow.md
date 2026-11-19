@@ -7,20 +7,19 @@ reach-mcp production deploy is **mcpo (the `mcpo` container) → persistent venv
 **Release checklist：**
 1. Bump `version` in pyproject.toml AND `__version__` in `src/reach_mcp/__init__.py` (they must match the tag or PyPI rejects the duplicate).
 2. `git tag v0.X.Y && git push origin main v0.X.Y` → `.github/workflows/publish.yml` (Trusted Publisher, id-token) builds and uploads. ~40s.
-3. Activate: wait for PyPI to show the new version, then either
-   - `docker exec mcpo /config/update-reach-venv.sh`（同步安装并切 symlink），再 `docker restart mcpo`；或
-   - 直接 `docker restart mcpo`，entrypoint 先用现有 venv、后台 updater 再切新版（下次 spawn 生效）。
-   已运行的 reach 进程保持旧 venv，直到 mcpo 重启。
+3. Activate: updater 只在容器启动和每天 04:20 host cron 跑；它只更新 venv，运行中的 reach 进程仍用旧版。要立刻生效：`docker exec mcpo /config/update-reach-venv.sh && docker restart mcpo`。只 `docker restart mcpo` 时，updater 可能在 reach spawn 后才装完，单次重启仍跑旧版；必要时重启两次。
 4. Verify: `docker exec mcpo /config/reach-venv/bin/python -c "import reach_mcp; print(reach_mcp.__version__)"` + `list_sources()` count（当前 33）。
 
 **Deploy files (host):**
 - config `/mnt/docker/mcpserver/config.json`（reach.command = `/config/reach-venv/bin/reach-mcp`，args `["--transport","stdio"]`；备份 `.bak-*`）。
 - entrypoint `/mnt/docker/mcpserver/entrypoint.sh`（repo `deploy/entrypoint.sh` — copy after edits）。
 - updater `/mnt/docker/mcpserver/update-reach-venv.sh`（repo `deploy/update-reach-venv.sh`）。
-- venv `/config/reach-venv`（symlink 到 `/config/reach-venv-<version>-<ts>`；保留旧版以便回滚）。
+- venv `/config/reach-venv`（symlink 到 `/config/reach-venv-<version>-<ts>`；updater 切换前把上一版写入 `/config/reach-venv.prev`，可手工切回）。当前好状态备份：`config.json.good-20261119-231023` + `entrypoint.sh.good-20261119-231023`。
 - caches `/config/uv-cache`、`/config/uv-tools`、`/config/npm-cache`、`/config/bin`、`/config/go`、`/config/ms-playwright`。
+- host cron（用户 eli）：`20 4 * * * /usr/bin/docker exec mcpo /config/update-reach-venv.sh >> /home/eli/logs/reach-update.log 2>&1`。
+- 权限：`config.json`、`config.json.bak-*`、`last30days.server.json` 含明文密钥，统一 600。
 
-**last30days 回滚：** 块在 `/mnt/docker/mcpserver/last30days.server.json`；恢复 config/entrypoint 备份并重启。二进制/数据仍在 `/config/last30days`，没有删除。
+**last30days 回滚：** 块在 `/mnt/docker/mcpserver/last30days.server.json`；合并进**当前** config 再重启即可（不要直接覆盖 `config.json.bak-no-last30days-*`，那是旧 uvx/12-server 形态）。当前 entrypoint 不再下载，但现有二进制可启动。完整退回旧形态才用 `config.json.bak-no-last30days-*` + `entrypoint.sh.bak-*`（慢路径）。
 
 **CI gotcha:** tests run on CI WITHOUT playwright installed — lifecycle tests must patch `_playwright_available` AND `_playwright`, else the early return skips the browser mock entirely (broke v0.4.0's CI).
 

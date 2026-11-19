@@ -11,6 +11,14 @@ CURRENT="$BASE/reach-venv"
 LOCK="$BASE/reach-update.lock"
 BOOTSTRAP=0
 [ "${1:-}" = "--bootstrap" ] && BOOTSTRAP=1
+NEXT=""
+SUCCESS=0
+cleanup() {
+  if [ "$SUCCESS" != "1" ] && [ -n "$NEXT" ] && [ -d "$NEXT" ]; then
+    rm -rf "$NEXT"
+  fi
+}
+trap cleanup EXIT
 
 exec 9>"$LOCK"
 if ! flock -n 9; then
@@ -71,6 +79,8 @@ fi
 uv "${ARGS[@]}" "reach-mcp[tiktok]==$LATEST"
 
 "$NEXT/bin/python" -c "import reach_mcp; assert reach_mcp.__version__ == '$LATEST'; print('reach', reach_mcp.__version__)"
+"$NEXT/bin/reach-mcp" --help >/dev/null
+"$NEXT/bin/python" -c "from reach_mcp.pipeline import import_all_sources; import_all_sources(); from reach_mcp.sources import SOURCES; assert len(SOURCES) >= 30"
 
 echo "[reach-update] ensuring matching chromium ..."
 if ! PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/config/ms-playwright}" \
@@ -80,8 +90,16 @@ if ! PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/config/ms-playwright
   exit 1
 fi
 
+if [ -L "$CURRENT" ]; then
+  readlink "$CURRENT" > "$BASE/reach-venv.prev"
+fi
+
 if [ -e "$CURRENT" ] && [ ! -L "$CURRENT" ]; then
   mv "$CURRENT" "$CURRENT.bak.$(date -u +%Y%m%d%H%M%S)"
 fi
-ln -sfn "$(basename "$NEXT")" "$CURRENT"
+
+TMP_LINK="$BASE/.reach-venv.tmp.$$"
+ln -s "$(basename "$NEXT")" "$TMP_LINK"
+mv -T "$TMP_LINK" "$CURRENT"
+SUCCESS=1
 echo "[reach-update] activated reach-mcp $LATEST at $CURRENT"

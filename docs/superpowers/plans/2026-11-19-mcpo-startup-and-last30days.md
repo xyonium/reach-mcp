@@ -16,11 +16,12 @@
 用户明确要求**不固定版本、跟随上游升级**，因此没有采用下面的 B/C pin 方案，实际落地为：
 
 - **last30days**：从 `config.json` 移除；块保存在 `/mnt/docker/mcpserver/last30days.server.json`，二进制/数据保留在 `/config/last30days`；entrypoint 不再下载/启动。`/last30days` 返回 404；reach 的 5 个工具不受影响。
-- **reach**：持久 venv `/config/reach-venv`，由 `/config/update-reach-venv.sh` 从 PyPI 安装**最新版**（不 pin）。启动先用现有 venv；后台检查新版，安装验证后原子切换 symlink，不阻塞重启。首次 bootstrap 可能慢一次。
-- **X bird**：`reach-mcp 0.7.7` 已 vendor `bird-search`（`src/reach_mcp/vendor/bird-search`，116KB、MIT）；`x.py` 从包内解析；`scripts/sync_bird_vendor.sh` + `.github/workflows/sync-bird.yml` 每周从 last30days upstream 同步并开 PR。
+- **reach**：持久 venv `/config/reach-venv`，由 `/config/update-reach-venv.sh` 从 PyPI 安装**最新版**（不 pin）。启动先用现有 venv；后台检查新版，安装验证后原子切换 symlink，不阻塞重启。首次 bootstrap 可能慢一次。更新检查在**容器启动 + 每天 04:20 host cron**；只更新 venv，运行中的进程仍旧，**下次 restart 生效**；立刻生效用 `docker exec mcpo /config/update-reach-venv.sh && docker restart mcpo`。坏 venv 会被入口的 import 健康检查捕获并走 `--bootstrap`；updater 切换前写 `/config/reach-venv.prev`。
+- **X bird**：`reach-mcp 0.7.7` 已 vendor `bird-search`（`src/reach_mcp/vendor/bird-search`，116KB、16 个文件、MIT）；`x.py` 从包内解析；`scripts/sync_bird_vendor.sh` + `.github/workflows/sync-bird.yml` 每周从 last30days upstream 同步并开 PR。
 - **免费 TikTok**：保留 `[tiktok]` extra；venv 里 Playwright 1.65.2，需匹配 chromium-1255（已补装）。Playwright 自带 node 缺 `libatomic.so.1`，entrypoint 用 `PLAYWRIGHT_NODEJS_PATH=/usr/bin/node`，并在容器重建后按需 `playwright install-deps chromium`。实测 TikTok 搜索 3 条，无 fallback warning。
 - **实测**：`docker restart mcpo` 到 ready **84–149s**（第一次 149s，第二次 84s；原 8m39s / 36m10s）；11 个 server 全连上；X 搜索 3–5 条、TikTok 3 条，`/reach/list_sources` 33 个源。
-- **回滚**：`entrypoint.sh.bak-*`、`config.json.bak-no-last30days-*`、`last30days.server.json`；恢复 config/entrypoint 后重启即可。
+- **安全**：`config.json`、`config.json.bak-*`、`last30days.server.json` 含明文密钥，已统一 `chmod 600`。
+- **回滚**：当前好状态 `config.json.good-20261119-231023` + `entrypoint.sh.good-20261119-231023`；坏 venv 用 `/config/reach-venv.prev`；只恢复 last30days 把 `last30days.server.json` 合并进当前 config；完整退回旧 uvx/12-server 才用 `config.json.bak-no-last30days-*` + `entrypoint.sh.bak-*`（会重走慢路径）。
 
 > 下面的 B/C 固定版本方案保留为历史备选；实际执行以本节为准。
 
@@ -419,12 +420,13 @@ docker exec mcpo /config/reach-venv/bin/python -c \
   "import reach_mcp.sources.x as x; print(x._BIRD_SEARCH_MJS)"   # 若用 C2
 ```
 
-### 4.4 回滚
+### 4.4 回滚（按场景）
 
-- 恢复 `/mnt/docker/mcpserver/entrypoint.sh.bak-*`；
-- 恢复 `config.json.bak-*`（A 或 C 的 args/constraints）；
-- `docker restart mcpo`；
-- 若 A 已删 `/config/last30days`，从归档 tar 恢复。
+- **当前好状态**：`config.json.good-20261119-231023` + `entrypoint.sh.good-20261119-231023`，`docker restart mcpo`。
+- **坏 reach venv**：`cat /config/reach-venv.prev` 拿到上一版目录，`ln -sfn <dir> /config/reach-venv`，再 `docker restart mcpo`；或跑 updater `--bootstrap` 重建。
+- **只恢复 last30days**：把 `last30days.server.json` 的 `last30days` 块合并进**当前** config，再重启；不要直接覆盖 `config.json.bak-no-last30days-*`（那是旧 uvx/12-server 形态）。当前 entrypoint 不再下载，但现有二进制可启动。
+- **完整退回旧形态**：`config.json.bak-no-last30days-*` + `entrypoint.sh.bak-*`，再重启；会重走 uvx/last30days 下载的慢路径，只作最后手段。
+- 配置/备份含密钥，统一 `chmod 600`。
 
 ---
 

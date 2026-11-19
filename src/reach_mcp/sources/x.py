@@ -51,7 +51,7 @@ async def _fetch_via_bird(query: str, limit: int) -> list[Row]:
     """Search via node bird-search.mjs (Twitter GraphQL)."""
     env = os.environ.copy()
     env.setdefault("BIRD_DISABLE_BROWSER_COOKIES", "1")
-    # Query gets a since: filter for the recency window (bird supports it)
+    # NOTE: days is not forwarded to bird; X search has no date filter here.
     try:
         proc = await asyncio.create_subprocess_exec(
             "node",
@@ -233,6 +233,8 @@ class X(Source):
         return rows
 
     async def fetch(self, query: str, days: int, limit: int) -> list[Row]:
+        # days is intentionally not forwarded: bird returns recency-ranked
+        # results and the wrapper has no date-window flag.
         if not self.available():
             return []
         # `query` arrives already collapsed to its core subject by the pipeline

@@ -116,11 +116,10 @@ done
 # ========== 7b. TikTok free backend (playwright + chromium, persisted) ==========
 # reach-mcp's tiktok source prefers a free headless-chromium in-page fetch over
 # the paid Apify actors. Two persisted pieces under /config (the mounted volume):
-#   - the playwright PYTHON package: NOT installed here — it rides in via
-#     mcpo config.json launching reach with
-#       "args": ["uvx", "--refresh", "--from", "reach-mcp[tiktok]", "reach-mcp", ...]
-#     so uv resolves it into reach-mcp's own environment (a bare `uv tool
-#     install playwright` would land in an isolated env the server can't import).
+#   - the playwright PYTHON package: installed by the reach venv updater into
+#     /config/reach-venv (the legacy uvx config.json path also pulls it via the
+#     [tiktok] extra). A bare `uv tool install playwright` would land in an
+#     isolated env the server can't import.
 #   - the chromium BINARY (~400MB): installed below into
 #     PLAYWRIGHT_BROWSERS_PATH=/config/ms-playwright so it survives container
 #     recreation. Skipped when the marker version file matches (upgrades flow
@@ -132,9 +131,8 @@ export PLAYWRIGHT_NODEJS_PATH="${PLAYWRIGHT_NODEJS_PATH:-$(command -v node || ec
 PW_MARKER="/config/ms-playwright/.chromium-ok"
 if [ ! -f "$PW_MARKER" ]; then
   echo "[mcpo] installing chromium for the tiktok free backend (one-time, ~400MB) ..."
-  # uvx runs reach-mcp[tiktok] in an ephemeral env; use an isolated venv on the
-  # volume purely as the installer/driver host. Its driver binary is what
-  # reach-mcp's playwright import talks to at runtime.
+  # Legacy installer host for fresh volumes. Current production reach lives in
+  # /config/reach-venv and installs its own matching chromium via the updater.
   if [ ! -x /config/pwenv/bin/python ]; then
     uv venv /config/pwenv >/dev/null 2>&1 || python3 -m venv /config/pwenv
     uv pip install --python /config/pwenv/bin/python playwright >/dev/null 2>&1 \
@@ -168,7 +166,8 @@ export UV_CONSTRAINT=/config/uv-constraints.txt
 # ========== 9. reach-mcp venv（跟随 PyPI 最新版，更新不阻塞启动）==========
 REACH_UPDATER=/config/update-reach-venv.sh
 if [ -x "$REACH_UPDATER" ]; then
-  if [ -x /config/reach-venv/bin/reach-mcp ]; then
+  if [ -x /config/reach-venv/bin/reach-mcp ] && \
+     /config/reach-venv/bin/python -c 'import reach_mcp' >/dev/null 2>&1; then
     echo "[mcpo] starting background reach update check..."
     "$REACH_UPDATER" >>/config/reach-update.log 2>&1 &
   else

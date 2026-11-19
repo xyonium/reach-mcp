@@ -59,11 +59,12 @@ python -m build                            # wheel（发布前验证 vendor/pack
   - `entrypoint.sh`：仓库 `deploy/entrypoint.sh` 是源文件；**改完要同步到宿主**（当前两者 sha256 一致）。
 - reach 的启动参数：`/config/reach-venv/bin/reach-mcp --transport stdio`。venv 由 `/config/update-reach-venv.sh` 从 PyPI 最新版安装/更新：启动时先用现有 venv，后台检查新版，安装验证后原子切换 symlink，不阻塞启动。**不 pin 版本**，跟随 PyPI 最新。`[tiktok]` extra 保留；chromium 在 `/config/ms-playwright`（当前 1255）。Playwright 自带 node 缺 `libatomic.so.1`，entrypoint 用 `PLAYWRIGHT_NODEJS_PATH=/usr/bin/node`；容器重建后 entrypoint 会按需 `playwright install-deps chromium` 补系统库。
 - `UV_CONSTRAINT=/config/uv-constraints.txt` 固定 `mcp<2`；mcpo 0.0.20 与部分子 server 不兼容 mcp 2.x，**不要删**。
-- 缓存都在 `/config` 卷：`uv-cache`、`uv-tools`、`npm-cache`、`bin`、`go`、`ms-playwright`、`reach-venv*`。`touch /config/UPGRADE` 会清二进制缓存并重装（last30days 已不启动，不再受它影响）。
-- **发布**：bump `pyproject.toml` 的 `version` 和 `src/reach_mcp/__init__.py` 的 `__version__`（必须一致）→ `git tag vX.Y.Z && git push origin main vX.Y.Z` → `.github/workflows/publish.yml` 发 PyPI。GitHub push 本身不会让线上生效；venv updater 会在后台发现新版本并切换，或 `docker restart mcpo` 触发检查。
+- 缓存都在 `/config` 卷：`uv-cache`、`uv-tools`、`npm-cache`、`bin`、`go`、`ms-playwright`、`reach-venv*`。`touch /config/UPGRADE` 会清二进制缓存并重装（last30days 已不启动，不再受它影响）。`config.json` 及 `.bak-*` 含明文密钥，统一 600；不要放宽。
+- **回滚**：当前好状态用 `config.json.good-20261119-231023` + `entrypoint.sh.good-20261119-231023`；只恢复 last30days 用 `last30days.server.json` 合并进当前 config（不要直接覆盖旧备份）；坏 venv 用 `cat /config/reach-venv.prev` 指向的旧 venv + restart；完整退回 uvx/12-server 旧形态才用 `config.json.bak-no-last30days-*` + `entrypoint.sh.bak-*`（会重走慢路径）。
+- **发布/更新**：bump `pyproject.toml` 的 `version` 和 `src/reach_mcp/__init__.py` 的 `__version__`（必须一致）→ `git tag vX.Y.Z && git push origin main vX.Y.Z` → `.github/workflows/publish.yml` 发 PyPI。GitHub push 本身不会让线上生效。`/config/update-reach-venv.sh` 在容器启动和每天 04:20 的 host cron 检查 PyPI 最新版，装入新 venv 后切 symlink；运行中的 reach 进程仍用旧 venv，**下次 `docker restart mcpo` 才生效**。要立刻生效：`docker exec mcpo /config/update-reach-venv.sh && docker restart mcpo`。单次重启可能仍跑旧版（updater 在 spawn 后才装完），必要时重启两次。
 - 验证线上版本：`docker exec mcpo /config/reach-venv/bin/python -c "import reach_mcp, importlib.metadata as m; print(reach_mcp.__version__, m.version('playwright'))"`，再对照 `pypi.org/pypi/reach-mcp/json`。
-- **X bird 已 vendored**：`src/reach_mcp/vendor/bird-search/`（116KB，MIT，基于 `@steipete/bird` 0.8.0）。`sources/x.py` 从包内解析，`REACH_MCP_BIRD_SEARCH_MJS` 可覆盖；`scripts/sync_bird_vendor.sh` 从 last30days upstream 同步，`.github/workflows/sync-bird.yml` 每周跑并开 PR。不再读 `/config/last30days`。
-- **启动慢已处理（2026-11-19）**：last30days 从 config 移除，entrypoint 不再下载；reach 改为持久 venv + 后台最新版更新，避免 uvx 在启动时下载 51MB Playwright。实测重启 **84–149s**（第一次 149s，第二次 84s；原 8m39s / 36m10s 的两个慢样本不再走阻塞路径）。注意：首次 bootstrap venv 仍可能慢一次；后续不阻塞。
+- **X bird 已 vendored**：`src/reach_mcp/vendor/bird-search/`（116KB、16 个文件，MIT，基于 `@steipete/bird` 0.8.0）。`sources/x.py` 从包内解析，`REACH_MCP_BIRD_SEARCH_MJS` 可覆盖；`scripts/sync_bird_vendor.sh` 从 last30days upstream 同步，`.github/workflows/sync-bird.yml` 每周跑并开 PR。不再读 `/config/last30days`。
+- **启动慢已处理（2026-11-19）**：last30days 从 config 移除，entrypoint 不再下载；reach 改为持久 venv + 后台最新版更新，避免 uvx 在启动时下载 51MB Playwright。实测重启 **84–149s**（第一次 149s，第二次 84s；原 8m39s / 36m10s 的两个慢样本不再走阻塞路径）。注意：首次 bootstrap venv 仍可能慢一次；后续不阻塞。每日 04:20 host cron 也会跑 updater（见 `/home/eli/crontab`，日志 `/home/eli/logs/reach-update.log`）。
 
 ## 测试纪律
 
