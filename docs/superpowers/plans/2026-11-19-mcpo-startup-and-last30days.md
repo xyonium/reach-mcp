@@ -195,6 +195,8 @@ bird-search.mjs（若存在） → api.x.com cookie fallback → Xquik（XQUIK_A
 
 ## 3. 方案
 
+> 以下是固定版本（pin）版的历史备选；用户 2026-11-19 明确要求不 pin，实际执行见 §0（venv + 后台跟随 PyPI 最新）。
+
 ### 方案 B（先做，只改 entrypoint）：固定 last30days 版本 + 预置二进制
 
 **目标**：把 last30days 从启动关键路径上拿掉；保留 `/research`、`/preflight`、YouTube comments。
@@ -469,7 +471,10 @@ docker exec mcpo /config/reach-venv/bin/python -c \
 
 ---
 
-## 8. 变更清单（执行时勾）
+## 8. 变更清单（pin 版历史清单）
+
+> 实际执行以 §0 为准：未 pin；last30days 已移除；reach 用持久 venv + 后台最新版更新。
+
 
 - [ ] B：改 `deploy/entrypoint.sh`（固定 `v4.3.2` + 代理 + fail-open + 预置）
 - [ ] B：预置 `last30days-pp-mcp` + `VERSION` 到 `/mnt/docker/mcpserver/last30days/`
