@@ -3,7 +3,10 @@
 # mcpo (https://github.com/open-webui/mcpo) launches many MCP servers via uvx
 # and exposes each as an OpenAPI endpoint. reach-mcp replaces the closed
 # last30days server 1:1 - just change the config.json entry from last30days to
-# reach-mcp. This compose mirrors the production setup at /mnt/docker/mcpserver.
+# reach-mcp. This compose is the generic uvx form; production at
+# /mnt/docker/mcpserver uses the persistent-venv form (command
+# /config/reach-venv/bin/reach-mcp, args ["--transport","stdio"]) with
+# deploy/update-reach-venv.sh.
 #
 #   1. Copy deploy/entrypoint.sh to your mcpo config dir (e.g. /mnt/docker/mcpserver/entrypoint.sh)
 #   2. Put a config.json next to it listing reach-mcp (see deploy/mcpo-config.example.json)

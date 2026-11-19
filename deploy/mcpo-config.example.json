@@ -32,7 +32,8 @@
             "WHISPER_API_KEY": "",
             "WHISPER_MODEL": "whisper-large",
             "XUEQIU_COOKIE": "xq_a_token=...; u=...",
-            "PLAYWRIGHT_BROWSERS_PATH": "/config/ms-playwright"
+            "PLAYWRIGHT_BROWSERS_PATH": "/config/ms-playwright",
+            "PLAYWRIGHT_NODEJS_PATH": "/usr/bin/node"
         }
     }
 }

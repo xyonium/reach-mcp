@@ -16,7 +16,7 @@
 用户明确要求**不固定版本、跟随上游升级**，因此没有采用下面的 B/C pin 方案，实际落地为：
 
 - **last30days**：从 `config.json` 移除；块保存在 `/mnt/docker/mcpserver/last30days.server.json`，二进制/数据保留在 `/config/last30days`；entrypoint 不再下载/启动。`/last30days` 返回 404；reach 的 5 个工具不受影响。
-- **reach**：持久 venv `/config/reach-venv`，由 `/config/update-reach-venv.sh` 从 PyPI 安装**最新版**（不 pin）。启动先用现有 venv；后台检查新版，安装验证后原子切换 symlink，不阻塞重启。首次 bootstrap 可能慢一次。更新检查在**容器启动 + 每天 04:20 host cron**；只更新 venv，运行中的进程仍旧，**下次 restart 生效**；立刻生效用 `docker exec mcpo /config/update-reach-venv.sh && docker restart mcpo`。坏 venv 会被入口的 import 健康检查捕获并走 `--bootstrap`；updater 切换前写 `/config/reach-venv.prev`。
+- **reach**：持久 venv `/config/reach-venv`，由 `/config/update-reach-venv.sh` 从 PyPI 安装**最新版**（不 pin）。启动先用现有 venv；后台检查新版，安装验证后原子切换 symlink，不阻塞重启。首次 bootstrap 可能慢一次。更新检查在**容器启动 + 每天 04:20 host cron**；只更新 venv，运行中的进程仍旧，**下次 restart 生效**；立刻生效用 `docker exec mcpo /config/update-reach-venv.sh && docker restart mcpo`。坏 venv 会被入口的 `import` + `reach-mcp --help` 健康检查捕获并走 `--bootstrap`；updater 切换前写 `/config/reach-venv.prev`。
 - **X bird**：`reach-mcp 0.7.7` 已 vendor `bird-search`（`src/reach_mcp/vendor/bird-search`，116KB、16 个文件、MIT）；`x.py` 从包内解析；`scripts/sync_bird_vendor.sh` + `.github/workflows/sync-bird.yml` 每周从 last30days upstream 同步并开 PR。
 - **免费 TikTok**：保留 `[tiktok]` extra；venv 里 Playwright 1.65.2，需匹配 chromium-1255（已补装）。Playwright 自带 node 缺 `libatomic.so.1`，entrypoint 用 `PLAYWRIGHT_NODEJS_PATH=/usr/bin/node`，并在容器重建后按需 `playwright install-deps chromium`。实测 TikTok 搜索 3 条，无 fallback warning。
 - **实测**：`docker restart mcpo` 到 ready **84–149s**（第一次 149s，第二次 84s；原 8m39s / 36m10s）；11 个 server 全连上；X 搜索 3–5 条、TikTok 3 条，`/reach/list_sources` 33 个源。

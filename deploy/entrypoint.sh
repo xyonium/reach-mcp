@@ -167,7 +167,8 @@ export UV_CONSTRAINT=/config/uv-constraints.txt
 REACH_UPDATER=/config/update-reach-venv.sh
 if [ -x "$REACH_UPDATER" ]; then
   if [ -x /config/reach-venv/bin/reach-mcp ] && \
-     /config/reach-venv/bin/python -c 'import reach_mcp' >/dev/null 2>&1; then
+     /config/reach-venv/bin/python -c 'import reach_mcp' >/dev/null 2>&1 && \
+     /config/reach-venv/bin/reach-mcp --help >/dev/null 2>&1; then
     echo "[mcpo] starting background reach update check..."
     "$REACH_UPDATER" >>/config/reach-update.log 2>&1 &
   else
