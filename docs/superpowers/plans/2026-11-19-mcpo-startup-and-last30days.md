@@ -430,6 +430,8 @@ docker exec mcpo /config/reach-venv/bin/python -c \
 
 ## 5. 需要你确认的
 
+> 2026-11-19 已确认：last30days 从 config 屏蔽；TikTok 免费后端保留；当前无人使用，已直接实施。
+
 1. **`/last30days/research` 或 `/last30days/preflight` 还在用吗？** OWUI 和 DSH 都没连它；需确认 Claude Code / 脚本 / 其他客户端。
 2. **last30days 的 YouTube comments 还在用吗？** reach 目前只取 `comment_count`，不抓评论正文。
 3. **TikTok 免费后端（Playwright）是刚需吗？** 不是的话可以走 C3，直接去掉 51MB 的 `[tiktok]` extra。
