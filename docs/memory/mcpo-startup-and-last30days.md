@@ -12,7 +12,7 @@
 
 - last30days 已从 `config.json` 移除：块保存在 `/mnt/docker/mcpserver/last30days.server.json`，二进制/数据保留在 `/config/last30days`；entrypoint 不再下载/不再启动它。last30days 的 `/preflight`、`/research` 不再暴露（reach 的 5 个工具不受影响）。
 - reach 改为持久 venv `/config/reach-venv`，由 `/config/update-reach-venv.sh` 从 PyPI 安装**最新版**（不 pin）。启动时用现有 venv；后台检查新版，安装验证后原子切换 symlink，不阻塞重启。首次 bootstrap 可能慢一次。
-- 更新边界：updater 只在**容器启动**和**每天 04:20 host cron**（`/home/eli/crontab`，日志 `/home/eli/logs/reach-update.log`）检查；它只更新 venv，运行中的 reach 进程仍用旧版，**下次 restart 才生效**。发版后要立刻生效：`docker exec mcpo /config/update-reach-venv.sh && docker restart mcpo`；单次重启可能仍跑旧版（updater 在 spawn 后才装完），必要时重启两次。
+- 更新边界：updater 只在**容器启动**和**每天 04:20 host cron**（`crontab -l`，日志 `/home/eli/logs/reach-update.log`）检查；它只更新 venv，运行中的 reach 进程仍用旧版，**下次 restart 才生效**。发版后要立刻生效：`docker exec mcpo /config/update-reach-venv.sh && docker restart mcpo`；单次重启可能仍跑旧版（updater 在 spawn 后才装完），必要时重启两次。
 - Playwright 1.65.2 需要 chromium-1255；已补装。自带 driver node 缺 `libatomic.so.1`，entrypoint 用 `PLAYWRIGHT_NODEJS_PATH=/usr/bin/node`，并在容器重建后按需 `playwright install-deps chromium`。
 - `reach-mcp 0.7.7` 已把 `bird-search` vendor 进包（`src/reach_mcp/vendor/bird-search`，116KB、16 个文件、MIT、上游 last30days main 同步）；`x.py` 从包内解析，`REACH_MCP_BIRD_SEARCH_MJS` 可覆盖。`scripts/sync_bird_vendor.sh` + `.github/workflows/sync-bird.yml` 每周从上游同步并开 PR。
 - 实测：`docker restart mcpo` 到 ready **84–149s**（第一次 149s，第二次 84s；原 8m39s / 36m10s）；11 个 server 全部连上；`/last30days` 404；X 搜索 3–5 条、TikTok 搜索 3 条（Playwright 免费后端正常，无 fallback warning）。

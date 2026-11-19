@@ -165,7 +165,7 @@ _BIRD_SEARCH_MJS = (
 现场核对：
 
 - 路径**存在**：`/config/last30days/cache/last30days-pp-mcp/v3.18.0/lib/vendor/bird-search/bird-search.mjs`；
-- 整个 `bird-search/` 目录 **116KB、15 个文件**；
+- 整个 `bird-search/` 目录 **116KB、15 个上游文件 + 本地 `UPSTREAM.md` = 16 个文件**；
 - 依赖只有 Node 内置模块（`node:fs` / `node:crypto` 等）和目录内相对文件，**没有 npm 依赖**，可以直接复制；
 - MIT License，基于 `@steipete/bird v0.8.0`，`package.json` 要求 Node >= 22；容器里 Node 是 **v22.22.0**；
 - query IDs 是运行时从 x.com 发现并缓存 24h（`DEFAULT_TTL_MS = 24h`），所以“冻结 JSON 会过期”的风险比想象低；容器 `HOME=/root` 已核对可写，能写 `query-ids-cache.json`。
