@@ -1,0 +1,14 @@
+# Exa 搜索能力与配额
+
+exa.ai search API (key provided by user 2026-08-29, stored in repo `.env` as `exa_api` — gitignored, NOT committed; for prod move to mcpo config env e.g. `EXA_API_KEY`):
+
+- **Endpoint**: POST https://api.exa.ai/search, header `x-api-key`. $0.007/neural search (auto type); costDollars field in response shows real cost.
+- **Key params (maximize)**: `includeDomains:["quora.com"]` (native domain filter — docs say use this NOT site:); `contents.highlights:true` (returns ANSWER-content snippets, bypasses CF walls); `contents.text` (full page text but gets CF-walled on quora — DON'T request it there, wasted); `startPublishedDate/endPublishedDate` (ISO date filter); `type` = auto/fast/instant/deep/deep-reasoning; `category` = news/people/company/publication; numResults ≤100.
+- **Quora verified**: includeDomains quora.com + highlights → 5/5 quora question pages with REAL answer core-sentences in highlights (not title fluff), some with publishedDate. text field = CF login shell (skip).
+- **LinkedIn verified**: includeDomains linkedin.com + highlights → 5/5 real posts ALL with fresh publishedDate (2026-06/08), highlights = post body opening. LinkedIn posts are public so exa content quality is high — potentially BETTER than the current Apify-first path for dated post discovery.
+- **Jina correction (user)**: s.jina.ai search = ONE-TIME token quota (not monthly); **r.jina.ai reader = completely FREE** (rate-limited but no token billing). Prior memory's "free monthly-quota LinkedIn via Jina" = r.jina.ai (reader, free); s.jina.ai (search) is one-time. Prefer exa over s.jina.ai for search. firecrawl CLOUD scrape burns free quota fast, but the user's deployment is SELF-HOSTED firecrawl (firecrawl.savorcare.com) so scrape/search cost nothing there.
+- **r.jina.ai on LinkedIn posts VERIFIED**: reads FULL post body (58KB, 60 content paras, real "5 Kubernetes mistakes" body text) past the sign-in nav — the free full-text path for linkedin. Quora full text also readable via r.jina.ai (40 paras) though firecrawl scrape is comparable.
+- **firecrawl (self-hosted, free)**: search `kubernetes quora` (no site: support) finds question pages; scrape reads full quora pages (24 answer paras, CF passed) — the fully-free self-hosted path. firecrawl:8080 is just the MCP shell; real API at firecrawl.savorcare.com/v1/{search,scrape}.
+- **exa is PAID beyond free trial credits** (x402 payment on quota exhaustion) — unlike self-hosted firecrawl. Quota unknown; treat as metered.
+
+**How to apply:** candidate quora/linkedin upgrade: exa includeDomains+highlights as a rich discovery layer (adds dates + answer snippets), then firecrawl scrape (free) for full text when needed. Compare cost vs Apify before promoting to primary. See [apify-replacement-and-it-gap-research](apify-replacement-and-it-gap-research.md), [linuxdo-playwright-cookie-backend](linuxdo-playwright-cookie-backend.md).

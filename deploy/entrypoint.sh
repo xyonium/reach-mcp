@@ -35,37 +35,10 @@ fi
 
 mkdir -p /config/bin /config/last30days
 
-# ========== 1. last30days MCP server（版本比对，最新则跳过）==========
-# NOTE: reach-mcp is a drop-in replacement for last30days. Keep this block only
-# if you still run the original last30days server alongside reach-mcp; otherwise
-# remove it and just let mcpo `uvx reach-mcp`.
-L30D_DIR=/config/last30days
-TAG=$(python3 -c "
-import json, urllib.request
-r = urllib.request.urlopen('https://api.github.com/repos/mvanhorn/last30days-skill/releases/latest', timeout=30)
-print(json.load(r)['tag_name'])
-" 2>/dev/null || echo "")
-CURRENT=$(cat "$L30D_DIR/VERSION" 2>/dev/null || echo none)
-
-if [ -n "$TAG" ] && { [ "$TAG" != "$CURRENT" ] || [ ! -x "$L30D_DIR/last30days-pp-mcp" ]; }; then
-  echo "[last30days] downloading $TAG ..."
-  python3 - "$TAG" "$L30D_DIR" "$GOARCH" <<'EOF'
-import io, os, stat, sys, zipfile, urllib.request
-tag, outdir, goarch = sys.argv[1], sys.argv[2], sys.argv[3]
-url = f"https://github.com/mvanhorn/last30days-skill/releases/download/{tag}/last30days-pp-mcp-linux-{goarch}.mcpb"
-data = urllib.request.urlopen(url, timeout=300).read()
-z = zipfile.ZipFile(io.BytesIO(data))
-bin_name = next(n for n in z.namelist() if n.endswith("last30days-pp-mcp") and not n.endswith("/"))
-out = os.path.join(outdir, "last30days-pp-mcp")
-with open(out, "wb") as f:
-    f.write(z.read(bin_name))
-os.chmod(out, os.stat(out).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-EOF
-  echo "$TAG" > "$L30D_DIR/VERSION"
-  echo "[last30days] installed $TAG"
-else
-  echo "[last30days] already at ${CURRENT}, skip download"
-fi
+# ========== 1. last30days（已从 config.json 移除，2026-11-19）==========
+# No download at startup. The existing binary/data under /config/last30days are
+# kept for rollback; restore the last30days block from
+# /mnt/docker/mcpserver/last30days.server.json to re-enable it manually.
 
 # ========== 2. yt-dlp + bili-cli（每次重启自动检查并升级最新版）==========
 echo "[mcpo] ensuring yt-dlp ..."
@@ -153,6 +126,9 @@ done
 #     recreation. Skipped when the marker version file matches (upgrades flow
 #     through the /config/UPGRADE flag like everything else).
 export PLAYWRIGHT_BROWSERS_PATH=/config/ms-playwright
+# Playwright's bundled node needs libatomic.so.1, which this slim image lacks;
+# the container's system node is used instead.
+export PLAYWRIGHT_NODEJS_PATH="${PLAYWRIGHT_NODEJS_PATH:-$(command -v node || echo /usr/bin/node)}"
 PW_MARKER="/config/ms-playwright/.chromium-ok"
 if [ ! -f "$PW_MARKER" ]; then
   echo "[mcpo] installing chromium for the tiktok free backend (one-time, ~400MB) ..."
@@ -188,5 +164,29 @@ UVEOF
   echo "[mcpo] wrote default uv-constraints.txt (mcp<2)"
 fi
 export UV_CONSTRAINT=/config/uv-constraints.txt
+
+# ========== 9. reach-mcp venv（跟随 PyPI 最新版，更新不阻塞启动）==========
+REACH_UPDATER=/config/update-reach-venv.sh
+if [ -x "$REACH_UPDATER" ]; then
+  if [ -x /config/reach-venv/bin/reach-mcp ]; then
+    echo "[mcpo] starting background reach update check..."
+    "$REACH_UPDATER" >>/config/reach-update.log 2>&1 &
+  else
+    echo "[mcpo] bootstrapping reach venv from PyPI..."
+    "$REACH_UPDATER" --bootstrap || echo "[mcpo] reach bootstrap failed; reach will be unavailable"
+  fi
+else
+  echo "[mcpo] WARN: $REACH_UPDATER missing; reach venv will not be updated"
+fi
+
+# ========== 10. Playwright system deps（容器重建后 apt 层会丢，按需补）==========
+if [ -x /config/reach-venv/bin/python ]; then
+  if ! (ldconfig -p 2>/dev/null || /sbin/ldconfig -p 2>/dev/null) | grep -q 'libglib-2.0.so.0'; then
+    echo "[mcpo] installing playwright system deps ..."
+    PLAYWRIGHT_NODEJS_PATH="$PLAYWRIGHT_NODEJS_PATH" \
+      /config/reach-venv/bin/python -m playwright install-deps chromium \
+      || echo "[mcpo] playwright deps install failed; tiktok may fall back"
+  fi
+fi
 
 exec uvx mcpo "$@"
