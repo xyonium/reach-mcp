@@ -30,10 +30,10 @@ export PATH=/config/bin:/config/go/bin:$PATH
 # ========== 0. 全局升级开关（touch /config/UPGRADE 后重启触发）==========
 if [ -f /config/UPGRADE ]; then
   echo "[mcpo] UPGRADE flag detected! Cleaning binary caches for fresh install..."
-  rm -rf /config/bin/* /config/last30days/VERSION /config/go /config/UPGRADE
+  rm -rf /config/bin/* /config/go /config/UPGRADE
 fi
 
-mkdir -p /config/bin /config/last30days
+mkdir -p /config/bin
 
 # ========== 1. last30days（已从 config.json 移除，2026-11-19）==========
 # No download at startup. The existing binary/data under /config/last30days are
@@ -177,6 +177,20 @@ if [ -x "$REACH_UPDATER" ]; then
   fi
 else
   echo "[mcpo] WARN: $REACH_UPDATER missing; reach venv will not be updated"
+fi
+
+# ========== 9b. bird-search runtime cache（跟随上游，无 PR）==========
+BIRD_BASE=/config/reach-bird
+BIRD_UPDATER=/config/update-bird-vendor.sh
+if [ -x "$BIRD_UPDATER" ]; then
+  if [ ! -f "$BIRD_BASE/current/bird-search.mjs" ]; then
+    echo "[mcpo] bootstrapping bird-search cache..."
+    "$BIRD_UPDATER" --bootstrap || echo "[mcpo] bird bootstrap failed; using bundled fallback"
+  fi
+  ( "$BIRD_UPDATER" >>"$BIRD_BASE/update.log" 2>&1 & )
+fi
+if [ -f "$BIRD_BASE/current/bird-search.mjs" ]; then
+  export REACH_MCP_BIRD_SEARCH_MJS="$BIRD_BASE/current/bird-search.mjs"
 fi
 
 # ========== 10. Playwright system deps（容器重建后 apt 层会丢，按需补）==========

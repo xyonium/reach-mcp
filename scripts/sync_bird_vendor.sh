@@ -1,5 +1,7 @@
 #!/bin/bash
-# Sync the vendored bird-search wrapper from last30days upstream (main).
+# Manual refresh of the bundled fallback from last30days upstream (main).
+# Production uses deploy/update-bird-vendor.sh at runtime; this script is for
+# release/offline fallback snapshots only.
 # Usage: ./scripts/sync_bird_vendor.sh [repo-url]
 set -euo pipefail
 
